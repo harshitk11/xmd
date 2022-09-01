@@ -1,0 +1,5 @@
+# Ignore the file containing the dropbox api key
+dropbox_api_key
+
+# Ignore the conda environment files
+conda-env
