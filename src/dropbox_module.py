@@ -294,7 +294,7 @@ def generate_parser_info(dbx, dbx_path, dataset_type, benchmark_flag, load_flag,
     logcat_folder_num_runs_dict = generate_json_apk_vs_logcat(dbx, ls_root, dbx_path = dbx_path,
                                                              load_flag=load_flag, 
                                                              f_save_base_folder = base_folder_location)
-    
+
     # Parse the logcat files and write the stats in a json file
     parse_logcat_files(dbx, dbx_path = dbx_path, 
                         dataset_type=dataset_type, benchmark_flag=benchmark_flag, 
@@ -310,31 +310,34 @@ def create_parser_info_for_all_datasets(dbx, base_folder_location, load_flag):
     """
     # Generating parser info for STD-dataset and CD-dataset
     ## NOTE : Make sure the folder name is preceeded by a backslash 
-    folders_dl = {
+    std_cd_dataset_info = {
                 "std_malware":{"dbx_path":"/results_android_zoo_malware_all_rerun", "app_type":"malware", "dtype":"std_malware"},
                 "std_benign":{"dbx_path":"/results_android_zoo_benign_with_reboot", "app_type":"benign", "dtype":"std_benign"},
                 "cd_malware":{"dbx_path":"/results_android_zoo_unknown_malware", "app_type":"malware", "dtype":"cd_malware"},
                 "cd_benign":{"dbx_path":"/results_android_zoo_unknown_benign", "app_type":"benign", "dtype":"cd_benign"}
                 }
 
-    for dtype, val in folders_dl.items():
+    for dtype, val in std_cd_dataset_info.items():
         print(f"--------------------- Generating parser_info for {dtype} ---------------------")
         generate_parser_info(dbx=dbx, dbx_path=val["dbx_path"], dataset_type=dtype, 
                             benchmark_flag=False, load_flag = load_flag, base_folder_location = base_folder_location)
 
     # Generating parser info for the BENCH-dataset
     # Benchmark logs are divided over three different folders
-    bench_folders_dl={"bench1":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module",
+    bench_dataset_info={"bench1":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module",
                 "bench2":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part2",
                 "bench3":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part3"}
     
-    for dtype, dbx_path in bench_folders_dl.items():
+    for dtype, dbx_path in bench_dataset_info.items():
         print(f"--------------------- Generating parser_info for {dtype} ---------------------")
         generate_parser_info(dbx=dbx, dbx_path=dbx_path, dataset_type=dtype, benchmark_flag=True, 
                             load_flag=load_flag, base_folder_location = base_folder_location)
 
 
 def main():
+    # Current directory path
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+
     # Get the dropbox api key
     with open("/data/hkumar64/projects/arm-telemetry/xmd/src/dropbox_api_key") as f:
         access_token = f.readlines()[0]
@@ -345,7 +348,8 @@ def main():
     print('...authenticated with Dropbox owned by ' + dbx.users_get_current_account().name.display_name)
 
     # Location of the base folder where all the parser info logs will be stored and loaded from 
-    base_folder_location = "../res/parser_info_files"
+    base_folder_location = os.path.join(dir_path.replace("/src",""),"res/parser_info_files")
+    
     if not os.path.isdir(base_folder_location):
         os.system(f"mkdir -p {base_folder_location}")
 
@@ -354,7 +358,7 @@ def main():
     # dataset_type = ["std_malware", "std_benign", "cd_malware", "cd_benign"]
     
     # ## NOTE : Make sure the folder name is preceeded by a backslash 
-    # folders_dl = {
+    # std_cd_dataset_info = {
     #             "std_malware":{"dbx_path":"/results_android_zoo_malware_all_rerun", "app_type":"malware", "dtype":"std_malware"},
     #             "std_benign":{"dbx_path":"/results_android_zoo_benign_with_reboot", "app_type":"benign", "dtype":"std_benign"},
     #             "cd_malware":{"dbx_path":"/results_android_zoo_unknown_malware", "app_type":"malware", "dtype":"cd_malware"},
@@ -362,24 +366,24 @@ def main():
     #             }
 
     # datType = dataset_type[2]
-    # dtype = folders_dl[datType]["dtype"]
-    # dbx_path = folders_dl[datType]["dbx_path"]
+    # dtype = std_cd_dataset_info[datType]["dtype"]
+    # dbx_path = std_cd_dataset_info[datType]["dbx_path"]
     # generate_parser_info(dbx=dbx, dbx_path=dbx_path, dataset_type=dtype, benchmark_flag=False, load_flag = 1, base_folder_location=base_folder_location)
     # ############################################################################################################################################
 
     # ################################################ Generating parser_info for benchmark apks #################################################
     # ## NOTE : Make sure the folder name is preceeded by a backslash 
     # # Benchmark logs are divided over three different folders
-    # bench_folders_dl={"bench1":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module",
+    # bench_dataset_info={"bench1":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module",
     #             "bench2":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part2",
     #             "bench3":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part3"}
     
-    # for dtype, dbx_path in bench_folders_dl.items():
+    # for dtype, dbx_path in bench_dataset_info.items():
     #     generate_parser_info(dbx=dbx, dbx_path=dbx_path, dataset_type=dtype, benchmark_flag=True, load_flag=0, base_folder_location=base_folder_location)
     # ############################################################################################################################################
 
     # Generating parser_info for all the datasets [STD, CD, and BENCH dataset]
-    create_parser_info_for_all_datasets(dbx, base_folder_location=base_folder_location, load_flag=0)
+    create_parser_info_for_all_datasets(dbx, base_folder_location=base_folder_location, load_flag=1)
     
 
 if(__name__=="__main__"):
