@@ -1620,6 +1620,7 @@ class dataset_generator:
 
         # Root directory of xmd
         self.root_dir_path = os.path.dirname(os.path.realpath(__file__)).replace("/src","")
+
         #################################################### Dataset info ######################################################## 
         # Information about the std dataset and the cd dataset
         self.std_cd_dataset_info = {
@@ -1635,6 +1636,95 @@ class dataset_generator:
                     "bench3":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part3"}
         ###########################################################################################################################
 
+        ############################### Generating black list for malware apks in the std-dataset #################################
+        vt_malware_report_path = os.path.join(self.root_dir_path, "res", "virustotal", "hash_virustotal_report_malware")
+        
+        # If the black list already exists, then it will load the previous black list. To generate the new blacklist, delete
+        # the not_malware_hashlist at "xmd/res/virustotal"
+        self.std_dataset_malware_blklst = self.get_black_list_from_vt_report(vt_malware_report_path)
+        ###########################################################################################################################
+
+    def get_black_list_from_vt_report(self, vt_malware_report_path):
+        """
+        Just for the std-dataset: Gets the list of malware apks with 0 or 1 vt positives. We will not process the logs 
+        from these apks as malware.
+
+        params:
+            - vt_malware_report_path : Path of the virustotal report of the malware
+         
+        Output:
+            - not_malware : List of hashes of apks with 0 or 1 vt positive
+        """
+        # Location where the not_malware list is stored
+        not_malware_list_loc = os.path.join(self.root_dir_path,"res","virustotal","not_malware_hashlist")
+
+        # Check if the not_malware_hashlist is already created. If yes, then return the previous list
+        if os.path.isfile(not_malware_list_loc):
+            with open(not_malware_list_loc, 'rb') as fp:
+                not_malware = pickle.load(fp)
+            return not_malware
+        
+        # Load the virustotal report
+        with open(file=vt_malware_report_path) as f:
+            report = json.load(f)
+
+        # List storing the malware with 0 or 1 positive results
+        not_malware = []
+
+        # Parsing the virustotal report
+        malware_details = {}
+        for hash, hash_details in report.items():
+            # Store the malware hash, positives, total, percentage positive
+            malware_details[hash] = {'positives':hash_details['results']['positives'],
+                                    'total':hash_details['results']['total'],
+                                    'percentage_positive':round((float(hash_details['results']['positives'])/float(hash_details['results']['total']))*100,2),
+                                    'associated_malware_families':[avengine_report['result'] for _,avengine_report in hash_details['results']['scans'].items() if avengine_report['result']]}
+            
+            # Identify the malware apks with 0 or 1 vt_positives
+            if int(hash_details['results']['positives']) == 0 or int(hash_details['results']['positives']) == 1 :
+                not_malware.append(hash)
+
+        # Save the not_malware list as a pickled file
+        with open(not_malware_list_loc, 'wb') as fp:
+            pickle.dump(not_malware, fp)
+            
+        return not_malware
+
+    def extract_hash_from_filename(shortlisted_file_list):
+        """
+        Extract hashes from the shortlisted files [Used for counting the number of apks for the std-dataset and the cd-dataset].
+        """
+        pass
+
+    def filter_shortlisted_files(self, file_list):
+        """
+        Filters out the blacklisted files from the shortlisted files. 
+        [Used for filtering out the blacklisted files from the malware apks in the std-dataset].
+        params:
+            - file_list : List of file names on which the filter needs to be applied
+        
+        Output:
+            - filtered_file_list : List of file names after the filter has been applied
+        """
+        # For tracking the number of files that are filtered out
+        num_files_filtered_out = 0
+        
+        # Storing the file names post filter
+        filtered_file_list = []
+
+        for fname in file_list:
+            # Extract the hash from the filename
+            hashObj = re.search(r'.*_(.*).apk.*', fname, re.M|re.I)
+            hash_ = hashObj.group(1)
+
+            # If the hash is not in the blklst, then add it to the filtered list
+            if hash_ not in  self.std_dataset_malware_blklst:
+                filtered_file_list.append(fname)
+            else:
+                num_files_filtered_out += 1
+
+        print(f"- Number of malware files that are filtered out: {num_files_filtered_out}")
+        return filtered_file_list
 
     def create_shortlisted_files(self, parser_info_loc, apply_filter = True):
         '''
@@ -1682,13 +1772,12 @@ class dataset_generator:
 
         return shortlisted_files, logcat_attributes_list
 
-    
     def generate_dataset(self):
         """
         Generates the dataset (benign,malware) based on the dataset_type and filter_values
         params:
+            None
             
-
         Output:
             - Generated dataset at the specified location
         """
@@ -1701,6 +1790,9 @@ class dataset_generator:
             # Create shortlisted files for benign and malware
             shortlisted_files_benign, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign, apply_filter=True)
             shortlisted_files_malware, _ = self.create_shortlisted_files(parser_info_loc=parser_info_malware, apply_filter=True)
+
+            # Filter out the blacklisted files from the malware file list
+            shortlisted_files_malware = self.filter_shortlisted_files(shortlisted_files_malware)
 
             
         elif self.dataset_type == "cd-dataset":
@@ -1732,18 +1824,23 @@ class dataset_generator:
         else:
             raise(ValueError("Incorrect dataset type specified"))
 
-        print(len(shortlisted_files_benign), len(shortlisted_files_malware))
-        # 2. Just for the std-dataset, remove all the malware files where number of vt_positives is 0 or 1.
+        #################### Dataset Info ####################
+        print(f"Information for the dataset : {self.dataset_type}")
+        print(f"- Number of benign files : {len(shortlisted_files_benign)}")
+        print(f"- Number of malware files : {len(shortlisted_files_malware)}")
+        ###################################################### 
+        exit()
+        
         # 3. Download the shortlisted files.
         pass
 
 def main():
-    # STD-Dataset
-    # dataset_generator_instance = dataset_generator(filter_values= [15,50,2], dataset_type="std-dataset")
+    # # STD-Dataset
+    dataset_generator_instance = dataset_generator(filter_values= [15,50,2], dataset_type="std-dataset")
     # # CD-Dataset
     # dataset_generator_instance = dataset_generator(filter_values= [15,50,2], dataset_type="cd-dataset")
     # # Bench-Dataset
-    dataset_generator_instance = dataset_generator(filter_values= [15,50,2], dataset_type="bench-dataset")
+    # dataset_generator_instance = dataset_generator(filter_values= [15,50,2], dataset_type="bench-dataset")
     
     dataset_generator_instance.generate_dataset()
     exit()

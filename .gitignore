@@ -3,3 +3,5 @@ dropbox_api_key
 
 # Ignore the conda environment files
 conda-env
+
+# Ignore the raw-data logs
