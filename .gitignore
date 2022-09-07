@@ -5,3 +5,4 @@ dropbox_api_key
 conda-env
 
 # Ignore the raw-data logs
+data/

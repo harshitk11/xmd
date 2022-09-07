@@ -85,70 +85,6 @@ def create_shortlisted_file_hashes(apk_type, filter):
     return shortlisted_file_hashes
 
 
-
-def create_dropbox_location(shortlisted_files, file_type):
-    '''
-    Function to create a list of dropbox locations and corresponding locations on the local machine
-    from the shortlisted files based on the file_type (dvfs, logcat, simpleperf)
-    Input :
-            - shortlisted_files : Full dropbox locations of the logcat files of the shortlisted files
-            - file_type : (dvfs, logcat, simpleperf)
-            
-    Output : 
-            -shortlisted_files_mod (List of dropbox locations for the given file_type)
-            -localhost_loc (List of corresponding file locations on the local host)
-    '''
-
-    shortlisted_files_mod = [] # Contains the location in dropbox
-    localhost_loc = [] # Contains the location of the file in the local host
-
-    for location in shortlisted_files:
-
-        # Extract the iter, rn, and base_locations
-        inputObj = re.search(r'(\/.*\/)logcat\/(.*logcat)(.*)', location, re.M|re.I)
-        base_loc = inputObj.group(1)
-        file_loc = inputObj.group(2)
-        iter_rn = inputObj.group(3)
-        
-        # Extract the rn number [Will be used for separating the HPC data into buckets]
-        rn_obj = re.search(r'.*\_(.*)\.txt', iter_rn, re.M|re.I)
-        rn_num = rn_obj.group(1) # Will be one of the following : ['rn1','rn2','rn3','rn4']
-        
-        # Extract the apk hash [Will inject the hash into the file name to accurately track the apks the logs are collected from]
-        hash_obj = re.search(r'.*_(.*)\.apk', base_loc, re.M|re.I)
-        apk_hash = hash_obj.group(1)
-        
-        if file_type == 'dvfs':
-            new_loc = base_loc+'dvfs/'+file_loc.replace('logcat','devfreq_data')+iter_rn # Dropbox location
-            rem_loc = 'dvfs/'+apk_hash+'_'+file_loc.replace('logcat','devfreq_data')+iter_rn # Location on the local host
-        elif file_type == 'logcat':
-            new_loc = location
-            rem_loc = 'logcat/'+apk_hash+'_'+file_loc+iter_rn
-        
-        # For performanc counter, we have 4 buckets : rn1, rn2, rn3, rn4. 
-        elif file_type == 'simpleperf':
-            new_loc = base_loc+'simpleperf/'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-            
-            # Create local location depending on the rn bucket
-            if (rn_num == 'rn1'):
-                rem_loc = 'simpleperf/rn1/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-            elif (rn_num == 'rn2'):
-                rem_loc = 'simpleperf/rn2/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-            elif (rn_num == 'rn3'):
-                rem_loc = 'simpleperf/rn3/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-            elif (rn_num == 'rn4'):
-                rem_loc = 'simpleperf/rn4/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-            else :
-                raise ValueError('Parser returned an incorrect run number')     
-        
-        else: 
-            raise ValueError('Incorrect file type provided')
-
-        shortlisted_files_mod.append(new_loc)
-        localhost_loc.append(rem_loc)
-
-    return shortlisted_files_mod, localhost_loc
-
 @contextlib.contextmanager
 def stopwatch(message):
     """Context manager to print how long a block of code took."""
@@ -173,67 +109,6 @@ def download(dbx, path, download_path):
             print('*** HTTP error ***', err)
             return None
 
-def download_shortlisted_files(shortlisted_files, file_type, app_type, base_folder_location):
-    '''
-    Function to download the shortlisted files from dropbox
-    Input : -shortlisted_files (List containing the dropbox location of the shortlisted files)
-            -file_type (the file type that you want to download : 'logcat', 'dvfs', or, 'simpleperf')
-            -app_type ('malware' or 'benign')
-            -base_folder_location : Base folder of the tree where the files are stored
-    Output : Downloads the shortlisted files in /data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data 
-            - Returns the location of the folder where the files are downloaded       
-    '''
-    dropbox_api_key="LrfF3TZH0FIAAAAAAAAAAdmwZvl7a22wkz6OE1Kevo6vwVg_J3i1CBflCx2MLg3h"
-
-    # Authenticate with Dropbox
-    print('Authenticating with Dropbox...')
-    dbx = dropbox.Dropbox(dropbox_api_key)
-    print('...authenticated with Dropbox owned by ' + dbx.users_get_current_account().name.display_name)
-
-    # # Download location on the local host
-    # base_download_location = base_folder_location
-    # base_download_location = base_download_location+app_type+'/'
-    # os.system('mkdir -p '+base_download_location + file_type)
-
-    # # If file_type is simpleperf then create rn bucket folders for each of them
-    # if (file_type == 'simpleperf'):
-    #     os.system('mkdir -p '+base_download_location + file_type + '/rn1')
-    #     os.system('mkdir -p '+base_download_location + file_type + '/rn2')
-    #     os.system('mkdir -p '+base_download_location + file_type + '/rn3')
-    #     os.system('mkdir -p '+base_download_location + file_type + '/rn4')
-
-    # Create the download location on the local host
-    base_download_location = os.path.join(base_folder_location, app_type)
-    os.system(f'mkdir -p {os.path.join(base_download_location, file_type)}')
-
-    # If file_type is simpleperf then create rn bucket folders for each of them
-    if (file_type == 'simpleperf'):
-        os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn1')}")
-        os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn2')}")
-        os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn3')}")
-        os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn4')}")
-
-    # Create the dropbox location for the give file_type from the shortlisted_files
-    dropbox_location, localhost_loc = create_dropbox_location(shortlisted_files, file_type)
-
-    # Counter to see how many files were not downloaded
-    not_download_count = 0
-
-    # Start the download
-    for i, location in enumerate(dropbox_location):
-        try:
-            # print(f'-------Dropbox location : {location}')
-            print(f'******* Local host location :{os.path.join(base_download_location, localhost_loc[i])} *******')
-            download(dbx, location, os.path.join(base_download_location, localhost_loc[i]))
-        except:
-            not_download_count+=1
-            traceback.print_exc()
-            print(f'File not downloaded : Count = {not_download_count}')
-
-    # Print the total files not downloaded
-    print(f" ******************* Total files not downloaded : {not_download_count} *******************")
-    return base_download_location+app_type+'/'+file_type
-        
 
 
 def create_file_dict(file_list, file_type):
@@ -1690,11 +1565,27 @@ class dataset_generator:
             
         return not_malware
 
-    def extract_hash_from_filename(shortlisted_file_list):
+    @staticmethod
+    def extract_hash_from_filename(file_list):
         """
         Extract hashes from the shortlisted files [Used for counting the number of apks for the std-dataset and the cd-dataset].
+        params:
+            - file_list : List of files from which the hashes needs to be extracted
+        Output:
+            - hash_list : List of hashes that is extracted from the file list
         """
-        pass
+        # To store the list of hashes
+        hash_list = []
+
+        for fname in file_list:
+            # Extract the hash from the filename
+            hashObj = re.search(r'.*_(.*).apk.*', fname, re.M|re.I)
+            hash_ = hashObj.group(1)
+
+            if hash_ not in hash_list:
+                hash_list.append(hash_)
+
+        return hash_list
 
     def filter_shortlisted_files(self, file_list):
         """
@@ -1772,14 +1663,152 @@ class dataset_generator:
 
         return shortlisted_files, logcat_attributes_list
 
-    def generate_dataset(self):
+    ######################################## Helper methods to download the files from dropbox ########################################
+    @staticmethod
+    def create_dropbox_location(shortlisted_files, file_type):
+        '''
+        Function to create a list of dropbox locations and corresponding locations on the local machine
+        from the shortlisted files based on the file_type (dvfs, logcat, simpleperf)
+        Input :
+                - shortlisted_files : Full dropbox locations of the logcat files of the shortlisted files
+                - file_type : (dvfs, logcat, simpleperf)
+                
+        Output : 
+                -shortlisted_files_mod (List of dropbox locations for the given file_type)
+                -localhost_loc (List of corresponding file locations on the local host)
+        '''
+
+        shortlisted_files_mod = [] # Contains the location in dropbox
+        localhost_loc = [] # Contains the location of the file in the local host
+
+        for location in shortlisted_files:
+
+            # Extract the iter, rn, and base_locations
+            inputObj = re.search(r'(\/.*\/)logcat\/(.*logcat)(.*)', location, re.M|re.I)
+            base_loc = inputObj.group(1)
+            file_loc = inputObj.group(2)
+            iter_rn = inputObj.group(3)
+            
+            # Extract the rn number [Will be used for separating the HPC data into buckets]
+            rn_obj = re.search(r'.*\_(.*)\.txt', iter_rn, re.M|re.I)
+            rn_num = rn_obj.group(1) # Will be one of the following : ['rn1','rn2','rn3','rn4']
+            
+            # Extract the apk hash [Will inject the hash into the file name to accurately track the apks the logs are collected from]
+            hash_obj = re.search(r'.*_(.*)\.apk', base_loc, re.M|re.I)
+            apk_hash = hash_obj.group(1)
+            
+            if file_type == 'dvfs':
+                new_loc = base_loc+'dvfs/'+file_loc.replace('logcat','devfreq_data')+iter_rn # Dropbox location
+                rem_loc = 'dvfs/'+apk_hash+'_'+file_loc.replace('logcat','devfreq_data')+iter_rn # Location on the local host
+            elif file_type == 'logcat':
+                new_loc = location
+                rem_loc = 'logcat/'+apk_hash+'_'+file_loc+iter_rn
+            
+            # For performanc counter, we have 4 buckets : rn1, rn2, rn3, rn4. 
+            elif file_type == 'simpleperf':
+                new_loc = base_loc+'simpleperf/'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                
+                # Create local location depending on the rn bucket
+                if (rn_num == 'rn1'):
+                    rem_loc = 'simpleperf/rn1/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                elif (rn_num == 'rn2'):
+                    rem_loc = 'simpleperf/rn2/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                elif (rn_num == 'rn3'):
+                    rem_loc = 'simpleperf/rn3/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                elif (rn_num == 'rn4'):
+                    rem_loc = 'simpleperf/rn4/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                else :
+                    raise ValueError('Parser returned an incorrect run number')     
+            
+            else: 
+                raise ValueError('Incorrect file type provided')
+
+            shortlisted_files_mod.append(new_loc)
+            localhost_loc.append(rem_loc)
+
+        return shortlisted_files_mod, localhost_loc
+    
+    def download_shortlisted_files(self, shortlisted_files, file_type, app_type):
+        '''
+        Function to download the shortlisted files from dropbox
+        Input : -shortlisted_files (List containing the dropbox location of the shortlisted files)
+                -file_type (the file type that you want to download : 'logcat', 'dvfs', or, 'simpleperf')
+                -app_type ('malware' or 'benign')
+               
+        Output : Downloads the shortlisted files in <root_dir>/data/<dataset_type> 
+                       
+        '''
+        # Create the download location on the local host
+        base_download_location = os.path.join(self.root_dir_path, "data", self.dataset_type, app_type)
+        os.system(f'mkdir -p {os.path.join(base_download_location, file_type)}')
+
+        # Get the dropbox api key
+        with open(os.path.join(self.root_dir_path,"src","dropbox_api_key")) as f:
+            access_token = f.readlines()[0]
+
+        # Authenticate with Dropbox
+        print('Authenticating with Dropbox...')
+        dbx = dropbox.Dropbox(access_token)
+        print('...authenticated with Dropbox owned by ' + dbx.users_get_current_account().name.display_name)
+
+        # If file_type is simpleperf then create rn bucket folders for each of them
+        if (file_type == 'simpleperf'):
+            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn1')}")
+            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn2')}")
+            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn3')}")
+            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn4')}")
+
+        # Create the dropbox location for the give file_type from the shortlisted_files
+        dropbox_location, localhost_loc = dataset_generator.create_dropbox_location(shortlisted_files, file_type)
+
+        # Counter to see how many files were not downloaded
+        not_download_count = 0
+
+        # Start the download
+        for i, location in enumerate(dropbox_location):
+            try:
+                # print(f'-------Dropbox location : {location}')
+                print(f'******* Local host location :{os.path.join(base_download_location, localhost_loc[i])} *******')
+                download(dbx, location, os.path.join(base_download_location, localhost_loc[i]))
+            except:
+                not_download_count+=1
+                traceback.print_exc()
+                print(f'File not downloaded : Count = {not_download_count}')
+
+        # Print the total files not downloaded
+        print(f" ******************* Total files not downloaded : {not_download_count} *******************")
+        
+
+    ###################################################################################################################################
+    def count_number_of_apks(self):
+        """
+        Count the number of apks (hashes) in the benign and malware file_list.
+        params:
+            - file_list: List of file names (including location)
+
+        Output: 
+            - num_apk_benign, num_apk_malware : Number of benign and malware apks
+        """
+
+        shortlisted_files_benign,shortlisted_files_malware = self.generate_dataset(download_file_flag=False)
+
+        # Get the hash_list for benign and malware
+        hashlist_benign = dataset_generator.extract_hash_from_filename(shortlisted_files_benign)
+        hashlist_malware = dataset_generator.extract_hash_from_filename(shortlisted_files_malware)
+
+        return len(hashlist_benign), len(hashlist_malware)
+
+    
+    def generate_dataset(self, download_file_flag):
         """
         Generates the dataset (benign,malware) based on the dataset_type and filter_values
         params:
-            None
-            
+            - download_file_flag : If True, then will download all the shortlisted files
+
         Output:
             - Generated dataset at the specified location
+            - returns shortlisted_files_benign, shortlisted_files_malware (Corresponding dvfs and simpleperf files will be downloaded
+                if download_file_flag is True.)
         """
         # 1. Create shortlisted files based on the logcat filter and dataset type
         if self.dataset_type == "std-dataset":
@@ -1820,6 +1849,10 @@ class dataset_generator:
 
             # Merge all the benchmark files to get one single list
             shortlisted_files_benign = shortlisted_files_benign1+shortlisted_files_benign2+shortlisted_files_benign3
+
+            # Filter out the blacklisted files from the malware file list
+            shortlisted_files_malware = self.filter_shortlisted_files(shortlisted_files_malware)
+
             
         else:
             raise(ValueError("Incorrect dataset type specified"))
@@ -1829,10 +1862,21 @@ class dataset_generator:
         print(f"- Number of benign files : {len(shortlisted_files_benign)}")
         print(f"- Number of malware files : {len(shortlisted_files_malware)}")
         ###################################################### 
-        exit()
         
-        # 3. Download the shortlisted files.
-        pass
+        
+        # 2. Download the shortlisted files at <root_dir>/data/<dataset_type> 
+        if download_file_flag:
+            print("--------- Downloading all the shortlisted files ---------")
+            # Downloading the shortlisted dvfs files [Needs to be executed only once to download the files]
+            malware_dvfs_path =  self.download_shortlisted_files(shortlisted_files_malware, file_type= 'dvfs', app_type= 'malware')
+            benign_dvfs_path =  self.download_shortlisted_files(shortlisted_files_benign, file_type= 'dvfs', app_type= 'benign')
+            
+            # Downloading the shortlisted performance counter files [Needs to be executed only once to download the files]
+            malware_simpeperf_path =  self.download_shortlisted_files(shortlisted_files_malware, file_type= 'simpleperf', app_type= 'malware')
+            benign_simpleperf_path =  self.download_shortlisted_files(shortlisted_files_benign, file_type= 'simpleperf', app_type= 'benign')
+
+        return shortlisted_files_benign,shortlisted_files_malware
+
 
 def main():
     # # STD-Dataset
@@ -1842,7 +1886,8 @@ def main():
     # # Bench-Dataset
     # dataset_generator_instance = dataset_generator(filter_values= [15,50,2], dataset_type="bench-dataset")
     
-    dataset_generator_instance.generate_dataset()
+    # dataset_generator_instance.generate_dataset(download_file_flag=True)
+    print(dataset_generator_instance.count_number_of_apks())
     exit()
     # # Creating shortlisted files by parsing logcat [Will be used for downloading the shortlisted files]
     # # Filter values : [runtime_per_file, num_logcat_lines_per_file, freq_logcat_event_per_file]
@@ -1876,86 +1921,6 @@ def main():
 
     # sys.exit()
     # ######################################################################################################################################################
-    # # # #################################################### For creating a new dataset without the blacklisted files ####################################################
-    # """
-    # Moves files from one directory to another, except the files which have hashnames in the blacklist.
-    # """
-    # with open(os.path.join('/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/preprocess/', 'not_malware_list'), 'rb') as fp:
-    #         blacklist_not_malware_list = pickle.load(fp)
-    
-    # source_dir = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/'
-    # target_dir = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated_filtered_malware/'
-    
-    
-    # # For tracking the number of black list files
-    # num_black_list = 0
-    
-    # # Transfer all the non blacklist files from source_dir to target_dir
-    # for root, d_names, f_names in os.walk(source_dir):
-    #     # If you are in the leaf directory that has files
-    #     if len(f_names) != 0:
-        
-    #         target_dir_ = root.replace(source_dir,target_dir)
-    #         if not os.path.isdir(target_dir_):
-    #             os.makedirs(target_dir_)
-            
-    #         for filename in f_names:
-    #             # Check if the hash is in the blacklist. Do this only for the malware subdirectory
-    #             file_hash_obj = re.search(r'(.*)__.*', filename, re.M|re.I)
-    #             malware_obj = re.search(r'.*\/(malware)\/.*', root, re.M|re.I)
-    #             malware_string = None
-                
-    #             if malware_obj: 
-    #                 malware_string = malware_obj.group(1).strip()
-                    
-    #             if file_hash_obj: 
-    #                 file_hash_string = file_hash_obj.group(1).strip()
-
-    #             # If malware log and present in the blacklist then do not copy it to target directory
-    #             if (file_hash_string in blacklist_not_malware_list) and (malware_string == 'malware'):
-    #                 print(os.path.join(root, filename))
-    #                 num_black_list+=1
-    #                 print(num_black_list)
-    #             else:
-    #                 # Copy the file to the target dir
-    #                 # print(f"Source : {os.path.join(root, filename)} | Destination : {target_dir_}")
-    #                 shutil.copy(os.path.join(root, filename), target_dir_)
-    # print(f"Total files found in the black list = {num_black_list}")
-    # sys.exit()
-
-    # # ################################################################################################################################################################## 
-    
-    # # #################################################### For transferring the malware data files from one folder to another ####################################################
-    # """
-    # Moves files from one directory to another, except the files which have hashnames in the blacklist.
-    # """
-    
-    # source_dir = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated_filtered_malware/malware/'
-    # target_dir = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated_filtered_malware_benchmark_benign/malware/'
-    
-    
-    # # For tracking the number of black list files
-    # num_black_list = 0
-    
-    # # Transfer all the non blacklist files from source_dir to target_dir
-    # for root, d_names, f_names in os.walk(source_dir):
-    #     # If you are in the leaf directory that has files
-    #     if len(f_names) != 0:
-        
-    #         target_dir_ = root.replace(source_dir,target_dir)
-    #         if not os.path.isdir(target_dir_):
-    #             os.makedirs(target_dir_)
-            
-    #         for filename in f_names:
-                
-    #             # Copy the file to the target dir
-    #             # print(f"Source : {os.path.join(root, filename)} | Destination : {target_dir_}")
-    #             shutil.copy(os.path.join(root, filename), target_dir_)
-    
-    # print(f"Total files found in the black list = {num_black_list}")
-    # sys.exit()
-
-    # ################################################################################################################################################################## 
     
     
     # # #################################################### For creating the hash list for virustotal [all malware and all benign] ####################################################
