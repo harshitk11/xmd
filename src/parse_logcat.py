@@ -114,6 +114,8 @@ class logcat_parser:
         return avg_freq
     #-------------------------------------------------------------------------------------------------------------------#    
 
+
+
 def main():
     # print(logcat_parser.extract_time_difference(logcat_parser.extract_events('/data/hkumar64/projects/arm-telemetry/codes/_com_dealmoon_android_logcat_iter_0_rn3.txt')))
     print(logcat_parser.get_average_frequency(logcat_parser.extract_events('/data/hkumar64/projects/arm-telemetry/logcat_files/results_android_zoo_malware_all_rerun/com_taomi_beauty_130AD68D523D08F47F2A776CFFBE62E4645AD3E6629FF741654DCFC8361A6F1A.apk/logcat/_com_taomi_beauty_logcat_iter_0_rn1.txt')))
