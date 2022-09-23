@@ -23,13 +23,12 @@ class logcat_parser:
         while True:
             try: 
                 line = rfile.readline()
-                # print(line)
+                
             except Exception as e: # Ignore the lines that throw errors [encoding issues with chinese characters]
                 print(e)
-                print("***************Ignoring error")
-                # print(line)
-                # break
+                print("*************** Ignoring error ***************")
                 continue
+            
             else:    
                 # Regex to extract the time stamp
                 logcat_obj = re.match( r'\d\d-\d\d (\d\d:\d\d:\d\d\.\d\d\d)', line, re.M|re.I)
@@ -40,16 +39,6 @@ class logcat_parser:
                     
                 if not line: # If line is empty, you have reached the end of the file. (readline() returns an empty string when it reaches end of file)
                     break
-
-        # Extract the time stamp from each of the logcat event and store it in a list
-        # for line in rfile:
-        #     print(line)
-        #     # Regex to extract the time stamp
-        #     logcat_obj = re.match( r'\d\d-\d\d (\d\d:\d\d:\d\d\.\d\d\d)', line, re.M|re.I)
-
-        #     if(logcat_obj):
-        #         # Add the timestamp to a list
-        #         timestamp_list.append(logcat_obj.group(1))
 
         rfile.close()
         # Return list of timestamp of the events

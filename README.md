@@ -20,7 +20,7 @@ Steps to generate the dataset:
     1. `create_parser_info_for_all_datasets()`: Python module to generate parser_info dict for all the datasets: `std-dataset`, `cd-dataset`, and `bench-dataset`.
 
         parser_info : dict for storing all the parsed information for each of the apk folder
-                    ## key = Path of apk logcat folder (Contains the apk name)
+                    ## key = Path of apk logcat folder (Contains the apk name), 
                     ## value = [Number of logcat files, {logcat_file_1: [avg_freq, num_logcat_lines, time_diff]}, {logcat_file_2: [avg_freq, num_logcat_lines, time_diff]}, ...]
 
 - `create_dataset.py`:- 

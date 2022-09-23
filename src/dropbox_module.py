@@ -1,10 +1,15 @@
 #https://github.com/dropbox/dropbox-sdk-python/blob/main/example/updown.py
 """
-Python module to generate parser_info dict.
+Python module to generate parser_info dict. 
 
 parser_info : dict for storing all the parser information for each of the apk folder
                         ## key = Path of apk logcat folder (Contains the apk name)
                         ## value = [Number of logcat files, {logcat_file_1: [avg_freq, num_logcat_lines, time_diff]}, {logcat_file_2: [avg_freq, num_logcat_lines, time_diff]}, ...]
+
+Also has helper functions to analyse the statistics of the parser_info dict. And generates the plot of runtime distributions of malware and benign applications.
+
+
+
 
 """
 
@@ -17,6 +22,12 @@ from collections import Counter
 from parse_logcat import logcat_parser
 import traceback
 import dropbox
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import pandas as pd
+
+
 
 def list_folder_extension(dbx, res, rv):
     """
@@ -334,10 +345,125 @@ def create_parser_info_for_all_datasets(dbx, base_folder_location, load_flag):
                             load_flag=load_flag, base_folder_location = base_folder_location)
 
 
-def main():
-    # Current directory path
-    dir_path = os.path.dirname(os.path.realpath(__file__))
+#################################### Function to analyse the statistics of information in parser_info dict ####################################
+class analyse_parser_info_dict:
+    '''
+    Contains functions to analyse the statistics and generate plots based on the parser info dicts.
+    '''
+    def __init__(self, base_dir) -> None:
+        """
+        params:
+            - base_dir: path of the src directory of the XMD repository
+        """
+        # Path where the parser info logs are stored
+        self.parser_info_dir = os.path.join(base_dir.replace("/src",""),"res/parser_info_files")
+        # Path where the plots are stored
+        self.output_dir_plots = os.path.join(base_dir.replace("/src",""),"plots/dataset_characterization")
 
+        if not os.path.isdir(self.output_dir_plots):
+            os.system(f"mkdir -p {self.output_dir_plots}")
+
+    ##################################### Methods to perform statistical analysis on the parser info logs #####################################
+    @staticmethod
+    def analyse_parser_info(dataset_type):
+        """
+        Analyse the statistics contained in the parser info dicts.
+        """
+        pass
+
+    ##################################### Methods to generate runtime distribution plots #####################################
+    def plot_runtime_distribution(self, runtime_per_file, app_type_per_file, dataset_type, save_location):
+        '''
+        Plots the runtime distribution
+        params:
+            - runtime_per_file: List containing runtimes of files. (Runtime calculated from logcat files)
+            - app_type_per_file: List containing corresponding application type [benign or malware] of files.
+            - dataset_type: Dataset ['std','cd', or 'all']
+            - save_location: Location where the plot is saved
+        '''
+
+        # create a dataframe
+        d = {'runtime':runtime_per_file, 'apk type':app_type_per_file}
+        df = pd.DataFrame(data=d)
+
+        plt.plot()
+        palette = ['#ff5050','#5cd65c']
+        sns.set_style("whitegrid")
+        ax = sns.histplot(data = df, x='runtime', hue='apk type', binwidth=2, multiple='dodge', shrink=0.8, palette=palette)
+        plt.xlabel('Runtime (in s)', weight = 'bold')
+        plt.ylabel('Number of iterations', weight='bold')
+        plt.setp(ax.get_legend().get_title(), weight='bold') # for legend title
+        plt.tight_layout()
+        plt.savefig(save_location)
+        plt.close('all')
+
+
+    def generate_runtime_distribution_plot_per_dataset(self, dataset_type, plot_flag):
+        """
+        Generates the run-time distribution of the malware and benign samples of a given dataset
+        params:
+            - dataset_type: The dataset for which the run-time distribution will be generated : ['std' or 'cd']
+            - plot_flag: Boolean flag to determine whether or not to generate the plot
+
+        Output:
+            - runtime_per_file, app_type_per_file : Arrays storing the runtime and the corresponding apk type
+        """
+        # Logcat json for each app type
+        apk_type_list = ['malware','benign']
+
+        # Array for storing the runtime duration for the logcat file [for both benign and malware]    
+        runtime_per_file = []
+        # app type per file
+        app_type_per_file = []
+
+        for app_type in apk_type_list:
+            # Load the JSON containing the apk folder name and the number of logcat files for the apk
+            with open(os.path.join(self.parser_info_dir,f"parser_info_{dataset_type}_{app_type}.json"),"r") as fp:
+                data=json.load(fp)
+                
+            for key,value in data.items():
+                # key = Path of apk logcat folder (Contains the apk name)
+                # value = [Number of logcat files, {logcat_file_1: [avg_freq, num_logcat_lines, time_diff]}, {logcat_file_2: [avg_freq, num_logcat_lines, time_diff]}, ...]
+            
+                for ind in range(value[0]): # Value[0] number of logcat files for each apk. Each logcat file has its own dict.
+                    i = ind + 1 # For indexing into the corresponding dict in the list.
+                    for key_,value_ in value[i].items():
+                        # key_ = Name of the logcat file
+                        # Value = [avg_freq, num_logcat_lines, time_diff]
+                        runtime_per_file.append(value_[2])
+                        app_type_per_file.append(app_type)
+
+        if plot_flag:
+            self.plot_runtime_distribution(runtime_per_file=runtime_per_file,
+                                            app_type_per_file=app_type_per_file,
+                                            dataset_type=dataset_type,
+                                            save_location=os.path.join(self.output_dir_plots,f"runtime_distribution_malware_benign_{dataset_type}_dataset.png"))
+
+        return runtime_per_file, app_type_per_file
+
+    def generate_runtime_distribution_plot_all_datasets(self, plot_flag):
+        """
+        Generates the run-time distribution of the malware and benign samples of all the datsets combined: {std-dataset and cd-dataset}
+        """
+        runtime_per_file_std, app_type_per_file_std = self.generate_runtime_distribution_plot_per_dataset(dataset_type='std', plot_flag=False)
+        runtime_per_file_cd, app_type_per_file_cd = self.generate_runtime_distribution_plot_per_dataset(dataset_type='cd', plot_flag=False)
+
+        runtime_per_file = runtime_per_file_std+runtime_per_file_cd
+        app_type_per_file = app_type_per_file_std+app_type_per_file_cd
+
+        if plot_flag:
+            self.plot_runtime_distribution(runtime_per_file=runtime_per_file,
+                                            app_type_per_file=app_type_per_file,
+                                            dataset_type='all',
+                                            save_location=os.path.join(self.output_dir_plots,f"runtime_distribution_malware_benign_all_dataset.png"))
+    ########################################################################################################################
+
+#######################################################################################################################################################
+
+def main():
+    # Current directory path [the folder in which the script is stored]
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    
     # Get the dropbox api key
     with open("/data/hkumar64/projects/arm-telemetry/xmd/src/dropbox_api_key") as f:
         access_token = f.readlines()[0]
@@ -382,9 +508,18 @@ def main():
     #     generate_parser_info(dbx=dbx, dbx_path=dbx_path, dataset_type=dtype, benchmark_flag=True, load_flag=0, base_folder_location=base_folder_location)
     # ############################################################################################################################################
 
-    # Generating parser_info for all the datasets [STD, CD, and BENCH dataset]
-    create_parser_info_for_all_datasets(dbx, base_folder_location=base_folder_location, load_flag=1)
+    # # Generating parser_info for all the datasets [STD, CD, and BENCH dataset]
+    # create_parser_info_for_all_datasets(dbx, base_folder_location=base_folder_location, load_flag=1)
     
+    ################################################### Analyze the parser_info dicts ############################################################
+    # Generate the runtime distribution plots
+    dataset_characterization = analyse_parser_info_dict(base_dir=dir_path)
+    dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_type = 'std', plot_flag=True)
+    dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_type = 'cd', plot_flag=True)
+    dataset_characterization.generate_runtime_distribution_plot_all_datasets(plot_flag=True)
+
+    ##############################################################################################################################################
+
 
 if(__name__=="__main__"):
     main()
