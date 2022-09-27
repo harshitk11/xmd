@@ -40,51 +40,6 @@ import traceback
 BENIGN_LABEL = 0
 MALWARE_LABEL = 1
 
-##################################################### Helper methods for preparing the dataloader for arm-telemetry ##################################################### 
-def create_shortlisted_file_hashes(apk_type, filter):
-    '''
-    Function to create a list of hashes of shortlisted files, based on logcat. Hashes will be used for querying virustotal.
-    Input: 
-        -apk_type : app_type whose logcat list you want to parse. Possible values : ['malware', 'benign']
-        -filter   : List of threshold values for logcat attributes [runtime_per_file, num_logcat_lines_per_file, freq_logcat_event_per_file] 
-    Output: 
-        - shortlisted_file_hashes : List containing the hashes of the shortlisted files
-    '''
-    # List containing the hashes of the shortlisted apks [Output of this method]
-    shortlisted_file_hashes = []
-    
-    # Load the JSON containing the parsed logcat info for each iteration of data collection (You need to run codes/dropbox_module.py to generate the file)
-    with open("/data/hkumar64/projects/arm-telemetry/codes/.parser_info_"+apk_type+".json","r") as fp:
-        data=json.load(fp)
-
-    # Extracting the threshold values    
-    runtime_thr, num_logcat_event_thr, freq_logcat_event_thr = filter 
-
-    for apk_folder,value in data.items():
-        # apk_folder = Path of apk logcat folder (Contains the apk name)
-        # value = [Number of logcat files, {logcat_file_1: [avg_freq, num_logcat_lines, time_diff]}, {logcat_file_2: [avg_freq, num_logcat_lines, time_diff]}, ...]
-
-        for ind in range(value[0]): # Value[0] = number of logcat files for each apk. Each logcat file has its own dict.
-            i = ind + 1 # For indexing into the corresponding dict in the list.
-            
-            for file_name,logcat_attributes in value[i].items():
-                # file_name = Name of the logcat file
-                # logcat_attributes = [avg_freq, num_logcat_lines, time_diff]
-
-                if((logcat_attributes[0] > freq_logcat_event_thr) and (logcat_attributes[1] > num_logcat_event_thr) and (logcat_attributes[2] > runtime_thr)):
-                    # File satisfies all the threshold, add the hash to the hash list
-                    # Extract the hash from the folder name
-                    hashObj = re.search(r'.*_(.*).apk.*', apk_folder, re.M|re.I)
-                    hash_loc = hashObj.group(1)
-
-                    # If hash not in list then add it to the list
-                    if not hash_loc in shortlisted_file_hashes:
-                        shortlisted_file_hashes.append(hash_loc)
-                        print(f"Added hash : {hash_loc}") 
-                    
-    return shortlisted_file_hashes
-
-
 @contextlib.contextmanager
 def stopwatch(message):
     """Context manager to print how long a block of code took."""
@@ -1890,12 +1845,8 @@ def main():
     print(dataset_generator_instance.count_number_of_apks())
     exit()
 
+    # NOTE: There is a need to introduce randomness while generating the dataloader lists, so that we can perform cross validation
     
-    # # Creating shortlisted files by parsing logcat [Will be used for downloading the shortlisted files]
-    # # Filter values : [runtime_per_file, num_logcat_lines_per_file, freq_logcat_event_per_file]
-    # # Dependency on  the JSON containing the parsed logcat info for each iteration of data collection (You need to run codes/dropbox_module.py to generate the file)
-    # shortlisted_files_malware, logcat_attributes_list = create_shortlisted_files('malware', [15,50,2])
-    # shortlisted_files_benign, logcat_attributes_list = create_shortlisted_files('benign', [15,50,2])
     
     # ################################# Trim the benign and malware to create a balanced dataset [Only for unknown testing] #################################
     # # Less number of files for malware so get number of malware files
@@ -1907,64 +1858,6 @@ def main():
     # if len(shortlisted_files_malware) != len(shortlisted_files_benign):
     #     raise ValueError(f"Unbalanced dataset : benign - {len(shortlisted_files_benign)} | malware - {len(shortlisted_files_malware)}")
     # ####################################################################################################################################################### 
-    # ########################################## Download the benign and malware and sort them into bins ####################################################
-    # print(f" - Number shortlisted files : benign - {len(shortlisted_files_benign)} | malware - {len(shortlisted_files_malware)}")
-    # # sys.exit()
-
-    # # Location of the base folder where all the files are stored
-    # base_folder_location = "/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/unknown_dataset"
-    # # # Downloading the shortlisted dvfs files [Needs to be executed only once to download the files]
-    # malware_dvfs_path =  download_shortlisted_files(shortlisted_files_malware, 'dvfs', 'malware', base_folder_location=base_folder_location)
-    # benign_dvfs_path =  download_shortlisted_files(shortlisted_files_benign, 'dvfs', 'benign', base_folder_location=base_folder_location)
-    
-    # # # Downloading the shortlisted performance counter files [Needs to be executed only once to download the files]
-    # malware_simpeperf_path =  download_shortlisted_files(shortlisted_files_malware, 'simpleperf', 'malware', base_folder_location=base_folder_location)
-    # benign_simpleperf_path =  download_shortlisted_files(shortlisted_files_benign, 'simpleperf', 'benign', base_folder_location=base_folder_location)
-
-    # sys.exit()
-    # ######################################################################################################################################################
-    
-    
-    # # #################################################### For creating the hash list for virustotal [all malware and all benign] ####################################################
-    """ Number of benign and malware apks that executed atleast once """
-    
-    total_hash_list_malware = create_shortlisted_file_hashes(apk_type = 'malware', filter = [0,0,0])
-    total_hash_list_benign = create_shortlisted_file_hashes(apk_type = 'benign', filter = [0,0,0])
-    
-    # # Remove the blacklist files from the malware list
-    # total_hash_list_malware = [x for x in total_hash_list_malware if x not in blacklist_not_malware_list]
-    # print(len(total_hash_list_malware),len(total_hash_list_benign))
-
-    # # Save the hash list as a pickle file
-    # with open('./preprocess/all_hash_list_malware', 'wb') as fp:
-    #     pickle.dump(total_hash_list_malware, fp)
-    # with open('./preprocess/all_hash_list_benign', 'wb') as fp:
-    #     pickle.dump(total_hash_list_benign, fp)
-    
-    print(f"Malware and Benign that executed")
-    print(f" Total malware : {len(total_hash_list_malware)} | Total benign : {len(total_hash_list_benign)}")
-    sys.exit()
-    # # ###################################################################################################################################################
-
-    # # #################################################### For creating the hash list for virustotal ####################################################
-    # """ Number of benign and malware apks that passed the logcat filter """
-    # shortlisted_hash_list_malware = create_shortlisted_file_hashes(apk_type = 'malware', filter = [15,50,2])
-    # shortlisted_hash_list_benign = create_shortlisted_file_hashes(apk_type = 'benign', filter = [15,50,2])
-    
-    # # # # Remove the blacklist files from the malware list
-    # # shortlisted_hash_list_malware = [x for x in shortlisted_hash_list_malware if x not in blacklist_not_malware_list]
-    
-    # # # Save the hash list as a pickle file
-    # # with open('./preprocess/shortlisted_hash_list_malware', 'wb') as fp:
-    # #     pickle.dump(shortlisted_hash_list_malware, fp)
-    # # with open('./preprocess/shortlisted_hash_list_benign', 'wb') as fp:
-    # #     pickle.dump(shortlisted_hash_list_benign, fp)
-    
-    # print(f"Malware and Benign that passed the logcat filter")
-    # print(f" Total malware : {len(shortlisted_hash_list_malware)} | Total benign : {len(shortlisted_hash_list_benign)}")
-    # sys.exit()
-    # # # ###################################################################################################################################################
-
     
     ############################------------------------- Testing the dataloader components for fusing HPC and DVFS -------------------------############################
     # Folders containing the benign logs [HPC and DVFS]

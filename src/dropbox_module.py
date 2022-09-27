@@ -348,7 +348,7 @@ def create_parser_info_for_all_datasets(dbx, base_folder_location, load_flag):
 #################################### Function to analyse the statistics of information in parser_info dict ####################################
 class analyse_parser_info_dict:
     '''
-    Contains functions to analyse the statistics and generate plots based on the parser info dicts.
+    Contains functions to analyse the statistics and generate runtime plots based on the parser info dicts.
     '''
     def __init__(self, base_dir) -> None:
         """
@@ -362,14 +362,6 @@ class analyse_parser_info_dict:
 
         if not os.path.isdir(self.output_dir_plots):
             os.system(f"mkdir -p {self.output_dir_plots}")
-
-    ##################################### Methods to perform statistical analysis on the parser info logs #####################################
-    @staticmethod
-    def analyse_parser_info(dataset_type):
-        """
-        Analyse the statistics contained in the parser info dicts.
-        """
-        pass
 
     ##################################### Methods to generate runtime distribution plots #####################################
     def plot_runtime_distribution(self, runtime_per_file, app_type_per_file, dataset_type, save_location):

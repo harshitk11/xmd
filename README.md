@@ -23,5 +23,7 @@ Steps to generate the dataset:
                     ## key = Path of apk logcat folder (Contains the apk name), 
                     ## value = [Number of logcat files, {logcat_file_1: [avg_freq, num_logcat_lines, time_diff]}, {logcat_file_2: [avg_freq, num_logcat_lines, time_diff]}, ...]
 
+    2. `analyse_parser_info_dict`: Class to analyse the statistics and generate runtime plots based on the parser info dicts. `generate_runtime_distribution_plot_all_datasets()` generates the runtime distribution plot of all the apk runs in all the datasets.
+    
 - `create_dataset.py`:- 
     1. `dataset_generator` : Class that filters out the runs (based on the filter) and downloads the dataset from Dropbox.
