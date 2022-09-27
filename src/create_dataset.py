@@ -1433,7 +1433,7 @@ class custom_collator(object):
 
         return resampled_batch_dvfs, target_fs
 
-class dataset_generator:
+class dataset_generator_downloader:
     def __init__(self, filter_values, dataset_type):
         """
         Dataset generator : Downloads the dataset from the dropbox.
@@ -1832,21 +1832,238 @@ class dataset_generator:
 
         return shortlisted_files_benign,shortlisted_files_malware
 
+class dataset_split_generator:
+    """
+    Generates the dataset splits for all the classification tasks: DVFS individual, DVFS Fusion, HPC individual, and HPC-DVFS Fusion
+    """
+    def __init__(self) -> None:
+        pass
+
+    def create_all_datasets(base_location):
+        """
+        Function to create splits: Train, Val, Test for all the tasks:
+                                    - Individual DVFS
+                                    - Fused DVFS
+                                    - Individual HPC
+                                    - Fused HPC
+                                    - HPC_DVFS fused (DVFS part)
+                                    - HPC_DVFS fused (HPC part)
+
+        Input : 
+            - base_location : Location of the base folder. See the directory structure in create_matched_lists()
+        Output :
+            - Partition and partition labels for DVFS individual, DVFS fusion, HPC individual, HPC fusion, HPC partition of DVFS-HPC fusion, DVFS partition of DVFS-HPC fusion
+            -  [(DVFS_partition_for_HPC_DVFS_fusion, DVFS_partition_labels_for_HPC_DVFS_fusion),
+                (HPC_partition_for_HPC_DVFS_fusion, HPC_partition_labels_for_HPC_DVFS_fusion),
+                (HPC_partition_for_HPC_individual,HPC_partition_labels_for_HPC_individual),
+                (HPC_partition_for_HPC_fusion,HPC_partition_labels_for_HPC_fusion),
+                (DVFS_partition_for_DVFS_individual,DVFS_partition_labels_for_DVFS_individual),
+                (DVFS_partition_for_DVFS_fusion,DVFS_partition_labels_for_DVFS_fusion)]
+
+        """
+        ####### To keep track of which files have not been selected for testing and validation [For Individual/Fused DVFS and Individual/Fused HPC] #######
+        dvfs_benign_loc = os.path.join(base_location, "benign","dvfs")
+        dvfs_malware_loc = os.path.join(base_location, "malware","dvfs")
+        simpleperf_benign_rn_loc = [os.path.join(base_location, "benign","simpleperf",rn) for rn in ['rn1','rn2','rn3','rn4']]
+        simpleperf_malware_rn_loc = [os.path.join(base_location, "malware","simpleperf",rn) for rn in ['rn1','rn2','rn3','rn4']]
+
+        # Generate file_lists from these locations
+        dvfs_benign_file_list = [join(dvfs_benign_loc,f) for f in listdir(dvfs_benign_loc) if isfile(join(dvfs_benign_loc,f))]
+        dvfs_malware_file_list = [join(dvfs_malware_loc,f) for f in listdir(dvfs_malware_loc) if isfile(join(dvfs_malware_loc,f))]
+        simpleperf_benign_file_list = [[join(_path,f) for f in listdir(_path) if isfile(join(_path,f))] for _path in simpleperf_benign_rn_loc]
+        simpleperf_malware_file_list = [[join(_path,f) for f in listdir(_path) if isfile(join(_path,f))] for _path in simpleperf_malware_rn_loc]
+
+        # Create a dict from these lists with key = file_path | value = Indicator (0 or 1) to identify whether this file has been selected for some spit or not
+        dvfs_benign_file_dict = {path: 0 for path in dvfs_benign_file_list}
+        dvfs_malware_file_dict = {path: 0 for path in dvfs_malware_file_list}
+        simpleperf_benign_file_dict = [{path: 0 for path in simpleperf_rn} for simpleperf_rn in simpleperf_benign_file_list]
+        simpleperf_malware_file_dict = [{path: 0 for path in simpleperf_rn} for simpleperf_rn in simpleperf_malware_file_list]
+        ###################################################################################################################################################
+
+        #########################******************************** Creating the splits for HPC-DVFS fusion ******************************##############################
+        # Get the list of matched files
+        #  - matched_lists_benign : [(matched_hpc_rn1_files, matched_dvfs_rn1_files), (...rn2...), (...rn3...), (...rn4...)]
+        #  - matched_lists_malware : [(matched_hpc_rn1_files, matched_dvfs_rn1_files), (...rn2...), (...rn3...), (...rn4...)]
+        matched_list_benign, matched_list_malware = create_matched_lists(base_location)
+
+        # DVFS dataset partitions for HPC fusion
+        # DVFS_partition_for_HPC_fusion : [dvfs_partition_for_fusion_with_rn1, dvfs_partition_for_fusion_with_rn2, ...rn3, ...rn4] 
+        DVFS_partition_for_HPC_DVFS_fusion = []
+        DVFS_partition_labels_for_HPC_DVFS_fusion = []
+        
+        # HPC_partition_for_HPC_fusion : [hpc_partition_for_fusion_with_rn1, hpc_partition_for_fusion_with_rn2, ...rn3, ...rn4]
+        HPC_partition_for_HPC_DVFS_fusion = []
+        HPC_partition_labels_for_HPC_DVFS_fusion = []
+
+        for indx,(rn_hpc_dvfs_benign,rn_hpc_dvfs_malware) in enumerate(zip(matched_list_benign, matched_list_malware)):
+            ############################################ Splits for HPC DVFS fusion ############################################
+            ######---------------------------------------------------------------- DVFS --------------------------------------------------------------######
+            # Create splits for benign and malware [dvfs]
+            benign_label, malware_label = create_labels_from_filepaths(benign_filepaths= rn_hpc_dvfs_benign[1], malware_filepaths= rn_hpc_dvfs_malware[1])
+            # Create the partition dict using the matched labels
+            partition = create_splits(benign_label= benign_label,malware_label= malware_label, partition_dist=None)
+            DVFS_partition_for_HPC_DVFS_fusion.append(partition)
+
+            # You can use all the files (not just the matched files) for creating labels.
+            all_benign_label, all_malware_label = create_labels_from_filepaths(benign_filepaths= dvfs_benign_file_list, malware_filepaths= dvfs_malware_file_list)
+            all_labels = {**all_benign_label,**all_malware_label}
+            DVFS_partition_labels_for_HPC_DVFS_fusion.append(all_labels) # One labels dict for each rn
+            
+            # Mark the files that are used in the val and test splits [The unmarked files will be used in the training for Individual and Fused DVFS]
+            for file_path in partition['val']:
+                if file_path in dvfs_benign_file_dict:
+                    dvfs_benign_file_dict[file_path] = 1
+                elif file_path in dvfs_malware_file_dict:
+                    dvfs_malware_file_dict[file_path] = 1
+            
+            for file_path in partition['test']:
+                if file_path in dvfs_benign_file_dict:
+                    dvfs_benign_file_dict[file_path] = 1
+                elif file_path in dvfs_malware_file_dict:
+                    dvfs_malware_file_dict[file_path] = 1
+
+            ########---------------------------------------------------------------- HPC --------------------------------------------------------------######
+            # Create splits for benign and malware [hpc]
+            benign_label, malware_label = create_labels_from_filepaths(benign_filepaths= rn_hpc_dvfs_benign[0], malware_filepaths= rn_hpc_dvfs_malware[0])
+            
+            partition = create_splits(benign_label= benign_label,malware_label= malware_label, partition_dist=None)
+            HPC_partition_for_HPC_DVFS_fusion.append(partition)
+
+            # You can use all the files for a given rn (not just the matched files) for creating labels.
+            all_benign_label, all_malware_label = create_labels_from_filepaths(benign_filepaths= simpleperf_benign_file_list[indx], malware_filepaths= simpleperf_malware_file_list[indx])
+            all_labels = {**all_benign_label,**all_malware_label}
+            HPC_partition_labels_for_HPC_DVFS_fusion.append(all_labels)
+
+            # Mark the files that are used in the val and test splits [The unmarked files will be used in the training for Individual and Fused HPC]
+            for file_path in partition['val']:
+                if file_path in simpleperf_benign_file_dict[indx]:
+                    simpleperf_benign_file_dict[indx][file_path] = 1
+                elif file_path in simpleperf_malware_file_dict[indx]:
+                    simpleperf_malware_file_dict[indx][file_path] = 1
+            
+            for file_path in partition['test']:
+                if file_path in simpleperf_benign_file_dict[indx]:
+                    simpleperf_benign_file_dict[indx][file_path] = 1
+                elif file_path in simpleperf_malware_file_dict[indx]:
+                    simpleperf_malware_file_dict[indx][file_path] = 1
+
+        # print("********** Stats for HPC partitions HPC-DVFS fusion ********** ")
+        # for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_DVFS_fusion):
+        #     print(f" - Stats for rn : {rn_indx+1}")
+        #     for key,value in rn_partition_dict.items():
+        #         print(f"  - {key,len(value)}")
+
+        
+        # print("********** Stats for HPC partitions HPC-DVFS fusion ********** ")
+        # for rn_indx, rn_partition_dict in enumerate(DVFS_partition_for_HPC_DVFS_fusion):
+        #     print(f" - Stats for rn : {rn_indx+1}")
+        #     for key,value in rn_partition_dict.items():
+        #         print(f"  - {key,len(value)}")
+
+        # ##### Testing for one to one correspondence between the DVFS partition and HPC partition #####
+        # rn_minus_1 = 3 # For selecting the rn_val
+        # for i,j in zip(DVFS_partition_for_HPC_DVFS_fusion[rn_minus_1]['val'], HPC_partition_for_HPC_DVFS_fusion[rn_minus_1]['val']):
+        #     print(f"- {i} ====== {j} ====== {DVFS_partition_labels_for_HPC_DVFS_fusion[rn_minus_1][i]} ======= {HPC_partition_labels_for_HPC_DVFS_fusion[rn_minus_1][j]}")
+        
+        #########################***************************************************************************************************##########################
+        
+        #########################******************************** Creating the splits for Individual HPC and HPC Fusion ******************************##############################
+
+        # For individual HPC, there is no val dataset, only test dataset = val+test dataset in HPC_DVFS fusion
+        HPC_partition_for_HPC_individual = [{'test':partition['val']+partition['test']} for partition in HPC_partition_for_HPC_DVFS_fusion] # One partition for each rn
+        HPC_partition_labels_for_HPC_individual = HPC_partition_labels_for_HPC_DVFS_fusion
+
+        # For fusion HPC, the val and test dataset is the same as HPC_DVFS fusion
+        HPC_partition_for_HPC_fusion = [{'val': partition['val'],'test':partition['test']} for partition in HPC_partition_for_HPC_DVFS_fusion]
+        HPC_partition_labels_for_HPC_fusion = HPC_partition_labels_for_HPC_DVFS_fusion
+        
+        # Creating the training partition for Fused and Individual HPC
+        # Create a list of all the samples that were not used for val and testing
+        train_benign = [[path for path,taken in simpleperf_benign_file_rn_dict.items() if taken==0] for simpleperf_benign_file_rn_dict in simpleperf_benign_file_dict]
+        train_malware = [[path for path,taken in simpleperf_malware_file_rn_dict.items() if taken==0] for simpleperf_malware_file_rn_dict in simpleperf_malware_file_dict]
+        train = [train_benign_rn+train_malware_rn for train_benign_rn,train_malware_rn in zip(train_benign,train_malware)]
+        
+        # Add it to the partition for both individual and Fused HPC
+        for indx,rn_dict in enumerate(HPC_partition_for_HPC_individual):
+            rn_dict['train'] = train[indx]
+        for indx,rn_dict in enumerate(HPC_partition_for_HPC_fusion):
+            rn_dict['train'] = train[indx]
+
+        # print("********** Stats for HPC partitions individual ********** ")
+        # for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_individual):
+        #     print(f" - Stats for rn : {rn_indx+1}")
+        #     for key,value in rn_partition_dict.items():
+        #         print(f"  - {key,len(value)}")
+
+        
+        # print("********** Stats for HPC partitions fusion ********** ")
+        # for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_fusion):
+        #     print(f" - Stats for rn : {rn_indx+1}")
+        #     for key,value in rn_partition_dict.items():
+        #         print(f"  - {key,len(value)}")
+        
+        #########################******************************** Creating the splits for Individual DVFS and DVFS Fusion ******************************##############################
+
+        # For individual DVFS, there is no val dataset, only test dataset = val+test dataset in HPC_DVFS fusion
+        DVFS_partition_for_DVFS_individual = {'test':list(itertools.chain.from_iterable([partition['val']+partition['test'] for partition in DVFS_partition_for_HPC_DVFS_fusion]))}
+        DVFS_partition_labels_for_DVFS_individual = {k:v for d in DVFS_partition_labels_for_HPC_DVFS_fusion for k,v in d.items()}
+
+        # For fusion DVFS, the val and test dataset is the same as HPC_DVFS fusion
+        DVFS_partition_for_DVFS_fusion = {'test':list(itertools.chain.from_iterable([partition['test'] for partition in DVFS_partition_for_HPC_DVFS_fusion])),
+                                        'val':list(itertools.chain.from_iterable([partition['val'] for partition in DVFS_partition_for_HPC_DVFS_fusion])) }
+        DVFS_partition_labels_for_DVFS_fusion = DVFS_partition_labels_for_DVFS_individual
+        
+        # Creating the training partition for Fused and Individual DVFS
+        # Create a list of all the samples that were not used for val and testing
+        train_benign = [path for path,taken in dvfs_benign_file_dict.items() if taken==0]
+        train_malware = [path for path,taken in dvfs_malware_file_dict.items() if taken==0]
+        train = train_benign+train_malware
+        # Shuffle the list in place
+        random.shuffle(train)   
+        
+        # Add it to the partition for both individual and Fused DVFS
+        DVFS_partition_for_DVFS_individual['train'] = train
+        DVFS_partition_for_DVFS_fusion['train'] = train
+
+        # # Testing the partition for individual and fused dvfs
+        # # print(DVFS_partition_for_DVFS_individual['train'])
+        # print(" ********** Stats for DVFS individual ********** ")
+        # for key,value in DVFS_partition_for_DVFS_individual.items():
+        #     print(f"  - {key, len(value)}")
+        
+        # print(" ********** Stats for DVFS fusion **********  ")
+        # for key,value in DVFS_partition_for_DVFS_fusion.items():
+        #     print(f"  - {key, len(value)}")
+        #########################**************************************************************************************************************************##########################
+
+
+        return [(DVFS_partition_for_HPC_DVFS_fusion, DVFS_partition_labels_for_HPC_DVFS_fusion),
+                (HPC_partition_for_HPC_DVFS_fusion, HPC_partition_labels_for_HPC_DVFS_fusion),
+                (HPC_partition_for_HPC_individual,HPC_partition_labels_for_HPC_individual),
+                (HPC_partition_for_HPC_fusion,HPC_partition_labels_for_HPC_fusion),
+                (DVFS_partition_for_DVFS_individual,DVFS_partition_labels_for_DVFS_individual),
+                (DVFS_partition_for_DVFS_fusion,DVFS_partition_labels_for_DVFS_fusion)]
+
 
 def main():
     # # STD-Dataset
-    dataset_generator_instance = dataset_generator(filter_values= [15,50,2], dataset_type="std-dataset")
+    # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="std-dataset")
     # # CD-Dataset
-    # dataset_generator_instance = dataset_generator(filter_values= [15,50,2], dataset_type="cd-dataset")
+    # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="cd-dataset")
     # # Bench-Dataset
-    # dataset_generator_instance = dataset_generator(filter_values= [15,50,2], dataset_type="bench-dataset")
+    # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="bench-dataset")
     
     # dataset_generator_instance.generate_dataset(download_file_flag=True)
-    print(dataset_generator_instance.count_number_of_apks())
-    exit()
+    # print(dataset_generator_instance.count_number_of_apks())
+    # exit()
 
     # NOTE: There is a need to introduce randomness while generating the dataloader lists, so that we can perform cross validation
     
+    ######################### Testing the datasplit generator #########################
+    test_path = "/data/hkumar64/projects/arm-telemetry/xmd/data/cd-dataset"
+    all_datasets = create_all_datasets(base_location=base_location)
+    exit()
+    ###################################################################################
     
     # ################################# Trim the benign and malware to create a balanced dataset [Only for unknown testing] #################################
     # # Less number of files for malware so get number of malware files
