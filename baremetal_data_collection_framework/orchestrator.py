@@ -47,15 +47,14 @@ run_time= broadcast_event_interaction_time + monkey_interaction_time # This is t
 # Number of apk runs with errors, beyond which we abort the apk and move on to the next apk
 abort_threshold = 2
 
+############################################################## System Broadcast Events ##############################################################
+sys_broadcast_event = ['BOOT_COMPLETED','SMS_RECEIVED','SCREEN_ON','WAP_PUSH_RECEIVED','CONNECTIVITY_CHANGE','PICK_WIFI_WORK','PHONE_STATE',
+'UMS_CONNECTED','UMS_DISCONNECTED','ACTION_MAIN','PACKAGE_ADDED','PACKAGE_REMOVED','PACKAGE_CHANGED','PACKAGE_REPLACED','PACKAGE_RESTARTED',
+'PACKAGE_INSTALL','ACTION_POWER_CONNECTED','ACTION_POWER_DISCONNECTED', 'BATTERY_LOW','BATTERY_OKAY','BATTERY_CHANGED_ACTION','USER_PRESENT',
+'INPUT_METHOD_CHANGED','SIG_STR','SIM_FULL']
+#####################################################################################################################################################
 
-## System Broadcast Events
-sys_broadcast_event = ['BOOT_COMPLETED','SMS_RECEIVED','SCREEN_ON','WAP_PUSH_RECEIVED','CONNECTIVITY_CHANGE','PICK_WIFI_WORK','PHONE_STATE','UMS_CONNECTED','UMS_DISCONNECTED','ACTION_MAIN',
-'PACKAGE_ADDED','PACKAGE_REMOVED','PACKAGE_CHANGED','PACKAGE_REPLACED','PACKAGE_RESTARTED','PACKAGE_INSTALL','ACTION_POWER_CONNECTED','ACTION_POWER_DISCONNECTED',
-'BATTERY_LOW','BATTERY_OKAY','BATTERY_CHANGED_ACTION','USER_PRESENT','INPUT_METHOD_CHANGED','SIG_STR','SIM_FULL']
-
-
-# Get the list of Applications required for data collection
-def get_app_list(path_dir): #path : path of the directory which contains the applications 
+def get_app_list(path_dir): 
 	"""
 	Returns the list of files in a directory.
 	params:
@@ -82,7 +81,8 @@ def extract_package_name(apk_file_name):
 	try:
 		package_string = sh.grep(sh.aapt('dump','badging', apk_file_name), 'package:\ name')
 
-	except sh.ErrorReturnCode: # Error raised in retrieving the package name. Return 0 and check for this when the package name is returned.
+	# Error raised in retrieving the package name. Return 0 and check for this when the package name is returned.
+	except sh.ErrorReturnCode: 
 		return 0
 
 	packageObj = re.match( r'package:\ name=\'([^\']*)\'', str(package_string), re.M|re.I)
@@ -90,11 +90,12 @@ def extract_package_name(apk_file_name):
 	if packageObj:
 		package_name = packageObj.group(1)
 	else:
-		return 0 # Package name was not extracted
+		# Package name was not extracted
+		return 0 
 
 	return package_name
 
-# Routine to extract the launchable activity name from the apk file name
+
 def extract_activity_name(apk_file_name):
 	"""
 	Function to extract the launchable activity name from the apk file name.
@@ -109,7 +110,8 @@ def extract_activity_name(apk_file_name):
 	try:
 		activity_string = sh.grep(sh.aapt('dump','badging', apk_file_name), 'activity')
 
-	except sh.ErrorReturnCode: # Error raised in retrieving the package name. Return 0 and check for this when the activty name is returned.
+	# Error raised in retrieving the package name. Return 0 and check for this when the activty name is returned.
+	except sh.ErrorReturnCode: 
 		return 0
 
 	activityObj = re.match( r'name=\'([^\']*)\'', str(activity_string), re.M|re.I)
@@ -117,7 +119,8 @@ def extract_activity_name(apk_file_name):
 	if activityObj:
 		activity_name = activityObj.group(1)
 	else:
-		return 0 # Activity name was not extracted
+		# Activity name was not extracted
+		return 0 
 
 	return activity_name
 
@@ -125,7 +128,7 @@ def interact_with_benchmark_app(package_name):
 	"""
 	Starts the benchmark application and runs it.
 	"""
-	print("******************STARTING INTERACTION WITH BENCHMARK******************")
+	print("****************** STARTING INTERACTION WITH BENCHMARK ******************")
 	ignore_this_apk=0
 	# Start the apk
 	os.system(f"adb shell monkey -p {package_name} -c android.intent.category.LAUNCHER 1")
@@ -149,13 +152,11 @@ def interact_with_benchmark_app(package_name):
 	time.sleep(1)
 	os.system("rm /tmp/view.xml")
 
-	time.sleep(15) # Allow the app to run for some time
+	# Allow the app to run for some time
+	time.sleep(15) 
 
 	return ignore_this_apk
 
-
-
-# Function that sets up the monkey interaction
 def interact_with_app_touch_events(package_name, activity_name, r_time, seed, log_file_handler, ignore_this_apk):
 	"""
 	Function to perform monkey tool based interaction.
@@ -173,9 +174,11 @@ def interact_with_app_touch_events(package_name, activity_name, r_time, seed, lo
 	"""
 	
 	print("******* MONKEY INTERACTION STARTING *******")
-	num_events = 2000 # The number doesn't matter because we are using timeout to terminate monkey
+	# The number doesn't matter because we are using timeout to terminate monkey
+	num_events = 2000 
 
-	s_fuzz_t = time.time(); # Time when monkey started interacting with the app
+	# Time when monkey started interacting with the app
+	s_fuzz_t = time.time() 
 
 	## command to insert UI touches events with 100ms delay
 	# pct-majornav : Percentage of major navigation events = 0 so that you do not exit the app 
@@ -187,7 +190,8 @@ def interact_with_app_touch_events(package_name, activity_name, r_time, seed, lo
 	# Ask monkey to interact with the app with the specified arguments
 	subprocess.Popen('adb shell timeout '+str(r_time)+ " "+monkey_cmd_1+monkey_cmd_2, shell=True).wait()
 	
-	e_fuzz_t = time.time() # Time when monkey ended interaction with the app
+	# Time when monkey ended interaction with the app
+	e_fuzz_t = time.time() 
 
 	# Check if the interacion time was less than your desired run time
 	# If this is the case, then your app might have crashed 
@@ -200,8 +204,8 @@ def interact_with_app_touch_events(package_name, activity_name, r_time, seed, lo
 	get_pid_raw = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE).stdout
 	get_pid_string = get_pid_raw.read().decode()
 
-	if get_pid_string == '': # If no pid is returned, then your application process doesn't exist. Log this.
-
+	# If no pid is returned, then your application process doesn't exist. Log this.
+	if get_pid_string == '': 
 		ignore_this_apk += 1
 
 		log_file_handler.error("Application is absent after MONKEY completed: " + str(package_name))
@@ -213,8 +217,6 @@ def interact_with_app_touch_events(package_name, activity_name, r_time, seed, lo
 
 	return ignore_this_apk		
 
-
-# Send broadcast events so that the app might respond (expect malwares to have broadcast receivers)
 def interact_with_app_broadcast_events(package_name, r_time, log_file_handler, ignore_this_apk):
 	"""
 	Function to send broadcast events to the app (expect malwares to have broadcast receivers)
@@ -232,7 +234,8 @@ def interact_with_app_broadcast_events(package_name, r_time, log_file_handler, i
 	print("******* BROADCAST INTERACTION STARTING *******")
 	
 	s_t = time.time()
-	while((time.time()-s_t) < r_time): # Broadcast events for a duration specified by r_time
+	# Broadcast events for a duration specified by r_time
+	while((time.time()-s_t) < r_time): 
 		for j in range(len(sys_broadcast_event)):
 			# Sending broad events to specific package provided by -p package_name
 			subprocess.Popen('adb shell \"su -c \' am broadcast -a android.intent.action.'+str(sys_broadcast_event[j])+' -p '+package_name+"\'\"", shell=True).wait()
@@ -253,7 +256,6 @@ def interact_with_app_broadcast_events(package_name, r_time, log_file_handler, i
 
 	return ignore_this_apk
 
-
 def launch_logcat(package_name, log_file_handler, dest_folder, iter_number, run, apk_file, ignore_this_apk):
 	"""
 	Checks if the package can be started, launches the apk, and then launches logcat.
@@ -269,7 +271,6 @@ def launch_logcat(package_name, log_file_handler, dest_folder, iter_number, run,
 		- ignore_this_apk : Updated ignore_this_apk.
 		- log_proc: Handler for the logcat subprocess.
 	"""
-
 	print("******* STARTING LOGCAT ROUTINE *******")
 
 	# Launch the apk
@@ -281,16 +282,18 @@ def launch_logcat(package_name, log_file_handler, dest_folder, iter_number, run,
 	get_pid_string = get_pid_raw.read().decode()
 	get_pid_string = get_pid_string.replace("\n","") # Delete the \n at the end of the pid
 
-	if get_pid_string == '': # If no pid is returned, then your application process doesn't exist. Log this.
+	# If no pid is returned, then your application process doesn't exist. Log this.
+	if get_pid_string == '': 
 		# You cannnot launch logcat
 		log_file_handler.error("PID is not present for logcat: " + str(package_name))
 		ignore_this_apk += 1
 		log_proc = None
-		
- 	
+			
 	else: # Launch logcat in the background
-		package_dir_name = package_name.replace(".","_")+"_"+apk_file # Used for accessing the folder of respective apks
-		dest_folder_logcat= dest_folder+"/"+package_dir_name+"/logcat" # Dest folder where all the logcat files are stored for a particular package
+		# Used for accessing the folder of respective apks
+		package_dir_name = package_name.replace(".","_")+"_"+apk_file 
+		# Dest folder where all the logcat files are stored for a particular package
+		dest_folder_logcat= dest_folder+"/"+package_dir_name+"/logcat" 
 		
 		log_proc = subprocess.Popen(f"python main_logcat.py {str(run)} 1 1 {dest_folder_logcat} {package_name} {str(iter_number)} {str(run_time)} {get_pid_string}", shell=True, stdout=subprocess.DEVNULL)
 				
@@ -313,9 +316,7 @@ def uninstall_apk(package_name):
 	"""
 	Function to uninstall the app on the test device
 	""" 
-	# os.system("adb uninstall "+package_name)
 	subprocess.Popen(f"adb uninstall {package_name}", shell=True, stdout=subprocess.PIPE).wait()
-
 
 
 # Module for creating the log file
@@ -323,9 +324,8 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
 def setup_logger(name, log_file, level=logging.WARNING):
     """
-	To setup as many loggers as you want
+	To setup the logger.
 	"""
-
     handler = logging.FileHandler(log_file, mode = 'a')        
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
@@ -349,11 +349,13 @@ def push_to_dropbox(app_folder_path, dest_folder_path, remove, file_flag, apk_fi
 	f = open(path_to_token, "r")
 	token = f.read() 
 
-	if file_flag: # You want to upload a file
+	if file_flag: 
+		# You want to upload a file
 		print("Uploading the log file")
 		dropbox_upload.upload(token, app_folder_path, dest_folder_path)
 
-	else: # You want to upload a folder
+	else: 
+		# You want to upload a folder
 		print("Uploading the folder")
 		dropbox_upload.upload_folder(app_folder_path, app_folder_path, dest_folder_path , token)
 
@@ -432,14 +434,15 @@ def check_partition_modification():
 		If the fields are different, then you have to perform a complete firmware flash
 		If the fields are same, then we only flash the data partition
 	"""
-	modified_partitions = [] # Stores the partitions that have been modified
+	# Stores the partitions that have been modified
+	modified_partitions = [] 
 
 	for key,value in partition_details.items():
 		if (value[1] != value[2]):
 			# Partition has been modified
 			modified_partitions.append(key)
 
-	return modified_partitions # We'll log this information. Tells us which malwares modify other partitions [another data point]		
+	return modified_partitions 		
 
 def check_low_battery_power():
 	"""
@@ -474,6 +477,8 @@ def check_screen_status():
 							- ON_LOCKED: Device screen is on and locked
 							- ON_UNLOCKED: Device screeen is on and unlocked
 	"""
+	screen_status = None
+
 	command = "adb shell dumpsys nfc | grep \'mScreenState=\'"
 	get_disp_status = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE).stdout
 	disp_status_string = get_disp_status.read().decode().replace("\n","")
@@ -485,29 +490,86 @@ def check_screen_status():
 	
 	return screen_status
 
+def reboot_device():
+	"""
+	Reboots the device and waits till the reboot process has finished.
+	"""
+	# Reboot 
+	os.system('adb reboot')
+	time.sleep(20)
+
+	# Check if the device has booted up
+	while not firmware_flash_script.check_device_boot_up():
+		print(f"[{firmware_flash_script.get_local_time()}] Waiting for the device to boot up.")
+		time.sleep(2)
+
+def reset_device():
+	"""
+	Stops gnirehtet, reboots device, and starts gnirehtet back. Method is used when the device stops responding.
+	"""
+	# Stop gnirehtet
+	subprocess.Popen('gnirehtet stop', shell=True).wait()
+	time.sleep(2)
+
+	reboot_device()
+	
+	# Wait for services to start up
+	time.sleep(10)
+
+	# Start gnirehtet again
+	subprocess.Popen('gnirehtet start', shell=True).wait()
+	time.sleep(2)
+
 def setup_wakeup_device():
 	"""
 	Method to wakeup the device before the data-collection and the apk execution starts
 	"""
+	unlock_count = 0
 	print(" - Waking up and setting up the device for data-collection.")
 	
-	# Keep on repeating the action until the device screen is ON and unlocked
-	while check_screen_status() != "ON_UNLOCKED":
+	try:
+		# Keep on repeating the action until the device screen is ON and unlocked
+		while check_screen_status() != "ON_UNLOCKED":
+			
+			print(f"  - Attempting to unlock and setup the phone : attempt-{unlock_count}")
+			
+			if check_screen_status() == "OFF_LOCKED":
+				# Keep on waking up the device until the screen is on 
+				while check_screen_status() != "ON_LOCKED":
+					subprocess.Popen('adb shell input keyevent KEYCODE_WAKEUP', shell=True).wait(timeout=5)
+					time.sleep(0.5)
 
-		if check_screen_status() == "OFF_LOCKED":
-			# Keep on waking up the device until the screen is on 
-			while check_screen_status() != "ON_LOCKED":
-				os.system('adb shell input keyevent KEYCODE_WAKEUP')
-				time.sleep(0.5)
+			subprocess.Popen('adb shell input keyevent KEYCODE_WAKEUP', shell=True).wait(timeout=5)
+			time.sleep(0.5)
+			subprocess.Popen('adb shell input keyevent KEYCODE_WAKEUP', shell=True).wait(timeout=5)
+			time.sleep(0.5)
 
-		# Swipe up to move away from the lock screen
-		os.system('adb shell input swipe 500 1000 300 300')	
-		time.sleep(1)
-		
-		# Go to home screen (if any other app is opened)
-		os.system('adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME')
-		time.sleep(1)	
-	
+			# Swipe up to move away from the lock screen
+			subprocess.Popen('adb shell input swipe 500 1000 300 300', shell=True).wait(timeout=5)
+			time.sleep(1)
+			
+			# Go to home screen (if any other app is opened)
+			subprocess.Popen('adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME', shell=True).wait(timeout=5)
+			time.sleep(1)	
+
+			unlock_count+=1
+
+			if unlock_count > 20: 
+				# If the device is stuck, then reboot the device.
+				print(f"  - Unlock attempts exceeded. Rebooting the device.")
+
+				# Rebooting the device
+				reset_device()
+
+				# Unlock and wake up device [Keeps on repeating the routine until the device status is ON and UNLOCKED]
+				setup_wakeup_device()
+
+	except subprocess.TimeoutExpired:
+		# If any of the command times out, then try resetting the device
+		reset_device()
+		# Unlock and wake up device [Keeps on repeating the routine until the device status is ON and UNLOCKED]
+		setup_wakeup_device()
+
 	print(" - Screen ON and UNLOCKED. Device ready for data collection.")
 
 
@@ -541,7 +603,6 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 
 	# Wake up and setup the device
 	setup_wakeup_device()
-
 
 	# Iterate through each apk file in the directory
 	for apk_file in file_names:
@@ -597,7 +658,6 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 			seed = random.randint(1,10000) # Seed is a random number between 1 and 10000 
 			print(f"-Starting a new independent iteration : {ind_iter}")
 					
-
 			for dep_iter in range(num_iter_dependent):
 				
 				# Check the ignore_this_apk flags
@@ -656,7 +716,6 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 					# Stop gnirehtet
 					subprocess.Popen('gnirehtet stop', shell=True).wait()
 
-
 					# Populate the checksum-after-malware field of all the partitions
 					extract_partition_checksum(flag_before_malware= 0)
 
@@ -672,10 +731,8 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 						# Log the details [datapoint : this malware modifies the following partition]
 						modified_partition_names = ' '.join(modified_partition_list)
 						
-						log_string = "Apk name: "+apk_file+" | " + "Package name: "+package_name+" | "+ "Iteration: ("+str(ind_iter)+","+str(dep_iter+1)+")"+ " | "+"Seed: "+str(seed) +" | "+ "Malware: " +str(MALWARE_FLAG) + " | " + "Benign: " +str(BENIGN_FLAG) + " | " + "Modified partitions: " +str(modified_partition_names)
-						
+						log_string = "Apk name: "+apk_file+" | " + "Package name: "+package_name+" | "+ "Iteration: ("+str(ind_iter)+","+str(dep_iter+1)+")"+ " | "+"Seed: "+str(seed) +" | "+ "Malware: " +str(MALWARE_FLAG) + " | " + "Benign: " +str(BENIGN_FLAG) + " | " + "Modified partitions: " +str(modified_partition_names)						
 						log_file_handler.error(log_string)
-
 
 						# After firmware flashing is complete, populate the checksum-before-malware field of all the partitions
 						extract_partition_checksum(flag_before_malware= 1)
@@ -697,7 +754,6 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 						subprocess.Popen('gnirehtet start', shell=True).wait()
 						time.sleep(2)
 
-
 				# Uninstall the benign app after every iteration [It will be installed again at the beginning of the iteration]	
 				elif(BENIGN_FLAG):
 					print("- Benignware execution complete: Uninstall APK")
@@ -709,20 +765,12 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 					# Uninstall the apk
 					uninstall_apk(package_name)
 
-					# Reboot 
-					os.system('adb reboot')
-					time.sleep(20)
-
-					# Check if the device has booted up
-					while not firmware_flash_script.check_device_boot_up():
-						print(f"[{firmware_flash_script.get_local_time()}] Waiting for the device to boot up.")
-						time.sleep(2)
+					# Reboot the device
+					reboot_device()
 
 					# Start gnirehtet again
 					subprocess.Popen('gnirehtet start', shell=True).wait()
 					time.sleep(2)
-
-	
 
 		# Data collected for the entire application. Push this folder to Dropbox
 		app_folder_path =  dest_folder+'/'+package_dir_name
@@ -736,7 +784,6 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 		upload_process = Process(target=push_to_dropbox, name="Uploader", args=(app_folder_path, dest_folder_path, remove_folder, file_flag, apk_file_path))
 		upload_process.start()
 		
-
 	# Stop gnirehtet
 	subprocess.Popen('gnirehtet stop', shell=True, stdout=subprocess.PIPE).wait()	
 	
