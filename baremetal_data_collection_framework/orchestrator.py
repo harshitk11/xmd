@@ -485,15 +485,31 @@ def check_screen_status():
 	
 	return screen_status
 
+def reboot_device():
+	"""
+	Reboots the device and waits till the reboot process has finished.
+	"""
+	# Reboot 
+	os.system('adb reboot')
+	time.sleep(20)
+
+	# Check if the device has booted up
+	while not firmware_flash_script.check_device_boot_up():
+		print(f"[{firmware_flash_script.get_local_time()}] Waiting for the device to boot up.")
+		time.sleep(2)
+
 def setup_wakeup_device():
 	"""
 	Method to wakeup the device before the data-collection and the apk execution starts
 	"""
+	unlock_count = 0
 	print(" - Waking up and setting up the device for data-collection.")
 	
 	# Keep on repeating the action until the device screen is ON and unlocked
 	while check_screen_status() != "ON_UNLOCKED":
-
+		
+		print(f"  - Attempting to unlock and setup the phone : attempt-{unlock_count}")
+		
 		if check_screen_status() == "OFF_LOCKED":
 			# Keep on waking up the device until the screen is on 
 			while check_screen_status() != "ON_LOCKED":
@@ -507,7 +523,23 @@ def setup_wakeup_device():
 		# Go to home screen (if any other app is opened)
 		os.system('adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME')
 		time.sleep(1)	
-	
+
+		unlock_count+=1
+
+		if unlock_count > 200: # If the device is stuck, then reboot the device.
+			# Stop gnirehtet
+			subprocess.Popen('gnirehtet stop', shell=True).wait()
+			time.sleep(2)
+
+			reboot_device()
+
+			# Start gnirehtet again
+			subprocess.Popen('gnirehtet start', shell=True).wait()
+			time.sleep(2)
+
+			# Unlock and wake up device
+			setup_wakeup_device()
+
 	print(" - Screen ON and UNLOCKED. Device ready for data collection.")
 
 
@@ -709,14 +741,8 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 					# Uninstall the apk
 					uninstall_apk(package_name)
 
-					# Reboot 
-					os.system('adb reboot')
-					time.sleep(20)
-
-					# Check if the device has booted up
-					while not firmware_flash_script.check_device_boot_up():
-						print(f"[{firmware_flash_script.get_local_time()}] Waiting for the device to boot up.")
-						time.sleep(2)
+					# Reboot the device
+					reboot_device()
 
 					# Start gnirehtet again
 					subprocess.Popen('gnirehtet start', shell=True).wait()
