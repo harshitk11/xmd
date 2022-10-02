@@ -29,8 +29,7 @@ import subprocess
 num_iter_independent = 1
 
 # Number of same iterations of data for each application
-# num_iter_dependent = 4 # One for every group of performance counters 
-num_iter_dependent = 4 # One for every group of performance counters 
+num_iter_dependent = 2 # One for every group of performance counters 
 #--------------------------------------------------------------------------------------------------------------------------#
 
 # Time for which to interact with the device
@@ -536,20 +535,20 @@ def setup_wakeup_device():
 			if check_screen_status() == "OFF_LOCKED":
 				# Keep on waking up the device until the screen is on 
 				while check_screen_status() != "ON_LOCKED":
-					subprocess.Popen('adb shell input keyevent KEYCODE_WAKEUP', shell=True).wait(timeout=10)
+					subprocess.Popen('adb shell input keyevent KEYCODE_WAKEUP', shell=True).wait(timeout=60)
 					time.sleep(0.5)
 
-			subprocess.Popen('adb shell input keyevent KEYCODE_WAKEUP', shell=True).wait(timeout=10)
+			subprocess.Popen('adb shell input keyevent KEYCODE_WAKEUP', shell=True).wait(timeout=60)
 			time.sleep(0.5)
-			subprocess.Popen('adb shell input keyevent KEYCODE_WAKEUP', shell=True).wait(timeout=10)
+			subprocess.Popen('adb shell input keyevent KEYCODE_WAKEUP', shell=True).wait(timeout=60)
 			time.sleep(0.5)
 
 			# Swipe up to move away from the lock screen
-			subprocess.Popen('adb shell input swipe 500 1000 300 300', shell=True).wait(timeout=10)
+			subprocess.Popen('adb shell input swipe 500 1000 300 300', shell=True).wait(timeout=60)
 			time.sleep(1)
 			
 			# Go to home screen (if any other app is opened)
-			subprocess.Popen('adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME', shell=True).wait(timeout=10)
+			subprocess.Popen('adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME', shell=True).wait(timeout=60)
 			time.sleep(1)	
 
 			unlock_count+=1
@@ -565,6 +564,7 @@ def setup_wakeup_device():
 				setup_wakeup_device()
 
 	except subprocess.TimeoutExpired:
+		print(" - Timeout exception raised. Rebooting the device. ")
 		# If any of the command times out, then try resetting the device
 		reset_device()
 		# Unlock and wake up device [Keeps on repeating the routine until the device status is ON and UNLOCKED]
