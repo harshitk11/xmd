@@ -572,8 +572,37 @@ def setup_wakeup_device():
 
 	print(" - Screen ON and UNLOCKED. Device ready for data collection.")
 
+def setup_wakeup_device_process():
+	"""
+	Launches the setup_wakeup_device process and monitors for timeouts.
+	"""
+	setup_completion_flag = False
 
+	while setup_completion_flag != True:
+	
+		setup_process = Process(target=setup_wakeup_device, name="test_timeout")
+		setup_process.start()
+		
+		# Wait for the setup to finish. If the setup takes longer than 10 mins, then we're probably stuck. 
+		setup_process.join(timeout=600)
+		
+		# Check if the process has sucessfully executed or timed out. Exitcode is 0 only when the process finishes properly.
+		if setup_process.exitcode != 0:
+			print("*********** Setup process has timed out. Terminating and rebooting the device. ***********")
+			# Process has timed out. Terminate the process and reset the device.
+			setup_process.terminate()
+			
+			# Reboot the device
+			reboot_device()
 
+			# Wait for services to start up
+			time.sleep(10)
+
+		# If the setup process is successfully finished
+		elif setup_process.exitcode == 0: 
+			setup_completion_flag = True
+
+	print(" - Setup process complete.")
 
 def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type):
 	"""
@@ -602,7 +631,7 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 		extract_partition_checksum(flag_before_malware= 1)
 
 	# Wake up and setup the device
-	setup_wakeup_device()
+	setup_wakeup_device_process()
 
 	# Iterate through each apk file in the directory
 	for apk_file in file_names:
@@ -688,7 +717,7 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 				log_file_handler.warning(log_string)
 				
 				# Wakeup and setup the device for data-collection process to start
-				setup_wakeup_device()
+				setup_wakeup_device_process()
 				#####################################################################################################################################################################
 
 				################################################### DATA COLLECTION START ############################################################
@@ -797,6 +826,9 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 	file_flag = 1 # You are uploading a single file
 	print(f"++++++++++++++++++++++++++++++++ Pushing the log file to dropbox: {app_folder_path} ++++++++++++++++++++++++++++++++")
 	push_to_dropbox(app_folder_path, dest_folder_path, remove_folder, file_flag, apk_file_path) # Do not remove the log files from your system
+
+def testing_timeout():
+	time.sleep(2)
 
 def main():
 
