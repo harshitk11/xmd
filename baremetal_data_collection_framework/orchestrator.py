@@ -598,6 +598,11 @@ def setup_wakeup_device_process():
 			# Wait for services to start up
 			time.sleep(10)
 
+			# Start gnirehtet again
+			subprocess.Popen('gnirehtet start', shell=True).wait()
+			time.sleep(2)
+
+
 		# If the setup process is successfully finished
 		elif setup_process.exitcode == 0: 
 			setup_completion_flag = True
