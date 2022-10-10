@@ -6,3 +6,12 @@ conda-env
 
 # Ignore the raw-data logs
 data/
+
+# Ignore the supporter files for downloading apks from androzoo
+baremetal_data_collection_framework/androzoo/latest.csv.gz
+baremetal_data_collection_framework/androzoo/latest.csv
+baremetal_data_collection_framework/androzoo/api_key
+baremetal_data_collection_framework/androzoo/apks/
+
+
+

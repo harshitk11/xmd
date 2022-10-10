@@ -68,7 +68,7 @@ def read_csvfile(filter, num_files):
 
 
                 # If we have enough apks, then terminate
-                if nApk > num_files:
+                if nApk >= num_files:
                     break
             
             except:
