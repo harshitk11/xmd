@@ -25,26 +25,27 @@ import subprocess
 
 #--------------------------------------------------------------------------------------------------------------------------#
 # Number of independent iterations of data for each application
-# num_iter_independent = 2
-num_iter_independent = 1
+num_iter_independent = 2
 
 # Number of same iterations of data for each application
-num_iter_dependent = 2 # One for every group of performance counters 
+num_iter_dependent = 4 # One for every group of performance counters 
 #--------------------------------------------------------------------------------------------------------------------------#
 
 # Time for which to interact with the device
-broadcast_event_interaction_time = 10
-monkey_interaction_time = 30
+broadcast_event_interaction_time = 20
+monkey_interaction_time = 35
 
 # Configuration parameters common for all the apps and iteration
 adb_pull = 1
 remove = 1
 
 samp_time_perf= 100 # This is in ms
-run_time= broadcast_event_interaction_time + monkey_interaction_time # This is the time for which you will capture telemetry (DVFS and Performance Counter)
+
+# This is the time for which you will capture telemetry (DVFS and Performance Counter)
+run_time= monkey_interaction_time + broadcast_event_interaction_time + monkey_interaction_time
 
 # Number of apk runs with errors, beyond which we abort the apk and move on to the next apk
-abort_threshold = 2
+abort_threshold = 4
 
 ############################################################## System Broadcast Events ##############################################################
 sys_broadcast_event = ['BOOT_COMPLETED','SMS_RECEIVED','SCREEN_ON','WAP_PUSH_RECEIVED','CONNECTIVITY_CHANGE','PICK_WIFI_WORK','PHONE_STATE',
@@ -737,8 +738,11 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 				# Start broadcast interaction
 				ignore_this_apk_broadcast = interact_with_app_broadcast_events(package_name, broadcast_event_interaction_time, log_file_handler, ignore_this_apk_broadcast)
 
-				# Buffer period for data collection to be over. Sleep for some time.
-				time.sleep(2)
+				# Simulate monkey
+				ignore_this_apk_monkey = interact_with_app_touch_events(package_name, activity_name, monkey_interaction_time, seed, log_file_handler, ignore_this_apk_monkey)
+
+				# Buffer period for data collection to be over. Sleep for some time and allow the data to be transferred to the host.
+				time.sleep(8)
 				################################################### DATA COLLECTION END ##############################################################
 
 				# If malware app, then uninstall the apk after every iteration and flash userdata/all partitions
@@ -840,7 +844,7 @@ def main():
 	# Dict storing the type of dataset, path of the directory storing the apks of the dataset, and flag for whether the directory contains malware
 	app_dir = {
 		
-		##############################################---------- USENIX summer submission ---------- ##############################################
+		############################################## ---------- USENIX summer submission ---------- ##############################################
         
 		## Malware samples for the std-dataset
 		# "android_zoo_malware_all_rerun":['/home/harshit/research/androidzoo/androidzoo_malwares/all/',1]
@@ -858,11 +862,11 @@ def main():
         # "android_zoo_unknown_benign":['/home/harshit/research/androidzoo/unknown_benign/ben_apps_vt_detect_0_to_0/apps_vt_detect_0_to_0/', 0]
 		############################################################################################################################################
 
-		## Test malware
-        "test_malware":['/home/harshit/research/androidzoo/test_malware/', 1]
+		############################################## ---------- USENIX winter submission ---------- ##############################################
+		## Benign samples for the std-dataset 
+		"std_benign":['/home/harshit/research/androidzoo/usenix/std_benign/',0]
+		############################################################################################################################################
 
-		## Test benign
-        # "test_benign":['/home/harshit/research/androidzoo/test_benign/', 0]
 
 	}
 			
@@ -870,7 +874,7 @@ def main():
 	for key, value in app_dir.items():		
 		path_dir = value[0]
 		MALWARE_FLAG = value[1]
-		dest_folder = 'results_'+key 
+		dest_folder = 'logs_'+key 
 		os.system('mkdir -p ' + dest_folder)
 		log_file_name = dest_folder+'/'+"log_file_"+key	
 		# Setting up the log file
