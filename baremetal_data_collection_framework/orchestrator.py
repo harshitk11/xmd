@@ -514,7 +514,7 @@ def reset_device():
 	reboot_device()
 	
 	# Wait for services to start up
-	time.sleep(10)
+	time.sleep(6)
 
 	# Start gnirehtet again
 	subprocess.Popen('gnirehtet start', shell=True).wait()
@@ -805,6 +805,8 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 
 					# Reboot the device
 					reboot_device()
+					# Wait for services to start up
+					time.sleep(5)
 
 					# Start gnirehtet again
 					subprocess.Popen('gnirehtet start', shell=True).wait()
