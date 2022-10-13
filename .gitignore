@@ -7,6 +7,18 @@ conda-env
 # Ignore the raw-data logs
 data/
 
+# Ignore the config logs
+config/
+
+# Ignore the run logs
+runs/
+
+# Ignore the results logs
+results/
+
+# Ignore the pycache file
+src/__pycache__
+
 # Ignore the supporter files for downloading apks from androzoo
 baremetal_data_collection_framework/androzoo/latest.csv.gz
 baremetal_data_collection_framework/androzoo/latest.csv

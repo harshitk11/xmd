@@ -1350,7 +1350,7 @@ class dataset_split_generator:
  
     """
     
-    def __init__(self, seed, partition_dist, dataset_type) -> None:
+    def __init__(self, seed, partition_dist, datasplit_dataset_type) -> None:
         """
         params:
             - seed : Used for shuffling the file list before generating the splits
@@ -1362,7 +1362,7 @@ class dataset_split_generator:
         """
         self.seed = seed
         self.partition_dist = partition_dist
-        self.dataset_type = dataset_type
+        self.dataset_type = datasplit_dataset_type
 
 
     @staticmethod

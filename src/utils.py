@@ -19,8 +19,11 @@ class Config:
         """
         # Reads the base configuration file
         self.args = self.read(file)
-        print(self.args)
-
+        print(f"------------------------------------------------------------------------")
+        print(f"Base configuration file : {file}")
+        for key,val in self.args.items():
+            print(f"{key}: {val}")
+        print(f"------------------------------------------------------------------------")
     def update(self, updatefile):
         """
         This method updates the base-configuration file based on the values read from the updatefile.
@@ -35,6 +38,8 @@ class Config:
             print(f"{key} : {val}")
 
         print("Configuration file updated")
+        print(f"------------------------------------------------------------------------")
+
 
     @staticmethod
     def read(filename):
