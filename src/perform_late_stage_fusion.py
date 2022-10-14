@@ -42,6 +42,25 @@ class dataloader_generator:
     """
     Contains all the helper methods for generating the dataloader for all the classification tasks.
     """
+    # Used to identify the partitions required for the different classification tasks for the different datasets : std-dataset, cd-dataset, bench-dataset
+    partition_activation_flags = {
+                                    "std-dataset":{'DVFS_partition_for_HPC_DVFS_fusion':{"train":True, "trainSG":True, "test":False},
+                                                'HPC_partition_for_HPC_DVFS_fusion':{"train":True, "trainSG":True, "test":False},
+                                                'HPC_individual':{"train":True, "trainSG":False, "test":False},
+                                                'DVFS_individual':{"train":True, "trainSG":False, "test":False},
+                                                'DVFS_fusion':{"train":False, "trainSG":False, "test":False}},
+                                    "cd-dataset":{'DVFS_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":False, "test":True},
+                                                'HPC_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":False, "test":True},
+                                                'HPC_individual':{"train":False, "trainSG":False, "test":True},
+                                                'DVFS_individual':{"train":False, "trainSG":False, "test":True},
+                                                'DVFS_fusion':{"train":False, "trainSG":False, "test":True}},
+                                    "bench-dataset":{'DVFS_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":False, "test":False},
+                                                    'HPC_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":False, "test":False},
+                                                    'HPC_individual':{"train":True, "trainSG":False, "test":True},
+                                                    'DVFS_individual':{"train":True, "trainSG":False, "test":True},
+                                                    'DVFS_fusion':{"train":True, "trainSG":False, "test":True}}
+                                    }
+
     @staticmethod
     def get_dataset_type_and_partition_dist(dataset_type):
         """
@@ -75,7 +94,7 @@ class dataloader_generator:
         return dsGen_dataset_type, dsGem_partition_dist
 
     @staticmethod
-    def get_dataloader_for_all_classification_tasks(all_dataset_partitionDict_label, args):
+    def get_dataloader_for_all_classification_tasks(all_dataset_partitionDict_label, dataset_type, args):
         """
         Generates the dataloader for all the classification tasks.
 
@@ -95,10 +114,13 @@ class dataloader_generator:
 
                                                 labels -> {file_path1 : 0, file_path2: 1, ...}        [Benigns have label 0 and Malware have label 1]
             
+            - dataset_type: Can take one of the following values {'std-dataset','bench-dataset','cd-dataset'}. 
+                            Based on the dataset type we will activate different partitions ("train", "trainSG", "test") for the different classification tasks.
+
             - args: easydict storing the arguments for the experiment
 
         Output:
-            - dataloader_dict = 
+            - dataloader_dict =
                         {
                             'HPC_DVFS_fusion':{'dvfs_partition':[dvfs_trainloader_hpc_dvfs_fusion,dvfs_validloader_hpc_dvfs_fusion,dvfs_testloader_hpc_dvfs_fusion],
                                               'hpc_partition':[hpc_trainloader_hpc_dvfs_fusion,hpc_validloader_hpc_dvfs_fusion,hpc_testloader_hpc_dvfs_fusion]},
@@ -129,8 +151,10 @@ class dataloader_generator:
                         'DVFS_fusion' :                        {'partition':all_dataset_partitionDict_label[4][0],'label':all_dataset_partitionDict_label[4][1],'file_type':'dvfs'}
                         }
         
-        for x,y in zip(select_dataset['DVFS_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test'], select_dataset['HPC_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test']):
-            print(f"{x,y}\n")
+        
+        # for x,y in zip(select_dataset['DVFS_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test'], select_dataset['HPC_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test']):
+        #     print(f"{x,y}\n")
+        # Partition flags for selecting the partitions that will be used for a specific dataset type
 
 def main_worker(args):
     """
