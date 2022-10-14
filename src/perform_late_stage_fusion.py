@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import stat
 import torch
 from utils import Config
 from create_dataset import dataset_generator_downloader, dataset_split_generator
@@ -37,36 +38,99 @@ def get_args(xmd_base_folder):
 
     return cfg, args
 
-def get_dataset_type_and_partition_dist(dataset_type):
+class dataloader_generator:
     """
-    Returns the dataset type and the partition dist for the dataset_split_generator.
-    params:
-        - dataset_type : Type of dataset. Can take one of the following values: {"std-dataset","bench-dataset","cd-dataset",
-                                                                                "cdyear1-dataset","cdyear2-dataset","cdyear3-dataset"}
-                                                                                
-    Output:
-        - dsGen_dataset_type : Type of dataset. Can take one of the following values: {"std-dataset","bench-dataset","cd-dataset"}
-        - dsGem_partition_dist : Split of the partition [num_train_%, num_trainSG_%, num_test_%]
+    Contains all the helper methods for generating the dataloader for all the classification tasks.
     """
-    if dataset_type == "std-dataset":
-        # This dataset is used for training the base-classifiers and the second stage model
-        dsGen_dataset_type = "std-dataset"
-        dsGem_partition_dist = [0.70,0.30,0]
+    @staticmethod
+    def get_dataset_type_and_partition_dist(dataset_type):
+        """
+        Returns the dataset type and the partition dist for the dataset_split_generator.
+        params:
+            - dataset_type : Type of dataset. Can take one of the following values: {"std-dataset","bench-dataset","cd-dataset",
+                                                                                    "cdyear1-dataset","cdyear2-dataset","cdyear3-dataset"}
+                                                                                    
+        Output:
+            - dsGen_dataset_type : Type of dataset. Can take one of the following values: {"std-dataset","bench-dataset","cd-dataset"}
+            - dsGem_partition_dist : Split of the partition [num_train_%, num_trainSG_%, num_test_%]
+        """
+        if dataset_type == "std-dataset":
+            # This dataset is used for training the base-classifiers and the second stage model
+            dsGen_dataset_type = "std-dataset"
+            dsGem_partition_dist = [0.70,0.30,0]
 
-    elif dataset_type == "bench-dataset":
-        # This dataset is used for training and testing the base-classifiers. The goal of the dataset is to establish the non-determinism in the GLOBL channels.
-        dsGen_dataset_type = "bench-dataset"
-        dsGem_partition_dist = [0.70,0,0.30]
+        elif dataset_type == "bench-dataset":
+            # This dataset is used for training and testing the base-classifiers. The goal of the dataset is to establish the non-determinism in the GLOBL channels.
+            dsGen_dataset_type = "bench-dataset"
+            dsGem_partition_dist = [0.70,0,0.30]
 
-    elif (dataset_type == "cd-dataset") or (dataset_type == "cdyear1-dataset") or (dataset_type == "cdyear2-dataset") or (dataset_type == "cdyear3-dataset"):
-        # This dataset is used for training and testing the base-classifiers. The goal of the dataset is to establish the non-determinism in the GLOBL channels.
-        dsGen_dataset_type = "cd-dataset"
-        dsGem_partition_dist = [0,0,1]
-    
-    else:
-        raise ValueError("[main_worker] Incorrect dataset type specified for the dataset split generator.")
+        elif (dataset_type == "cd-dataset") or (dataset_type == "cdyear1-dataset") or (dataset_type == "cdyear2-dataset") or (dataset_type == "cdyear3-dataset"):
+            # This dataset is used for training and testing the base-classifiers. The goal of the dataset is to establish the non-determinism in the GLOBL channels.
+            dsGen_dataset_type = "cd-dataset"
+            dsGem_partition_dist = [0,0,1]
+        
+        else:
+            raise ValueError("[main_worker] Incorrect dataset type specified for the dataset split generator.")
 
-    return dsGen_dataset_type, dsGem_partition_dist
+        return dsGen_dataset_type, dsGem_partition_dist
+
+    @staticmethod
+    def get_dataloader_for_all_classification_tasks(all_dataset_partitionDict_label, args):
+        """
+        Generates the dataloader for all the classification tasks.
+
+        params:
+            - all_dataset_partitionDict_label: 
+                                                [
+                                                (DVFS_partition_for_HPC_DVFS_fusion, DVFS_partition_labels_for_HPC_DVFS_fusion),
+                                                (HPC_partition_for_HPC_DVFS_fusion, HPC_partition_labels_for_HPC_DVFS_fusion),
+                                                (HPC_partition_for_HPC_individual,HPC_partition_labels_for_HPC_individual),
+                                                (DVFS_partition_for_DVFS_individual,DVFS_partition_labels_for_DVFS_individual),
+                                                (DVFS_partition_for_DVFS_fusion,DVFS_partition_labels_for_DVFS_fusion)
+                                                ]
+                                        
+                                                partition -> {'train' : [file_path1, file_path2, ..],
+                                                                'trainSG' : [file_path1, file_path2, ..],
+                                                                'test' : [file_path1, file_path2]}
+
+                                                labels -> {file_path1 : 0, file_path2: 1, ...}        [Benigns have label 0 and Malware have label 1]
+            
+            - args: easydict storing the arguments for the experiment
+
+        Output:
+            - dataloader_dict = 
+                        {
+                            'HPC_DVFS_fusion':{'dvfs_partition':[dvfs_trainloader_hpc_dvfs_fusion,dvfs_validloader_hpc_dvfs_fusion,dvfs_testloader_hpc_dvfs_fusion],
+                                              'hpc_partition':[hpc_trainloader_hpc_dvfs_fusion,hpc_validloader_hpc_dvfs_fusion,hpc_testloader_hpc_dvfs_fusion]},
+                            'HPC_individual':[trainloader_hpc_individual,testloader_hpc_individual],
+                            'DVFS_individual':[trainloader_dvfs_individual,testloader_dvfs_individual],
+                            'DVFS_fusion':[trainloader_dvfs_fusion,validloader_dvfs_fusion,testloader_dvfs_fusion]
+                        }
+        """
+        # For selecting the dataset partition, labels, and file_type of the dataset_of_interest in all_datasets
+        select_dataset = {
+                        'DVFS_partition_for_HPC_DVFS_fusion' : {'rn1':{'partition':all_dataset_partitionDict_label[0][0][0],'label':all_dataset_partitionDict_label[0][1][0],'file_type':'dvfs'},
+                                                                'rn2':{'partition':all_dataset_partitionDict_label[0][0][1],'label':all_dataset_partitionDict_label[0][1][1],'file_type':'dvfs'},
+                                                                'rn3':{'partition':all_dataset_partitionDict_label[0][0][2],'label':all_dataset_partitionDict_label[0][1][2],'file_type':'dvfs'},
+                                                                'rn4':{'partition':all_dataset_partitionDict_label[0][0][3],'label':all_dataset_partitionDict_label[0][1][3],'file_type':'dvfs'}},
+
+                        'HPC_partition_for_HPC_DVFS_fusion' :  {'rn1':{'partition':all_dataset_partitionDict_label[1][0][0],'label':all_dataset_partitionDict_label[1][1][0],'file_type':'simpleperf'},
+                                                                'rn2':{'partition':all_dataset_partitionDict_label[1][0][1],'label':all_dataset_partitionDict_label[1][1][1],'file_type':'simpleperf'},
+                                                                'rn3':{'partition':all_dataset_partitionDict_label[1][0][2],'label':all_dataset_partitionDict_label[1][1][2],'file_type':'simpleperf'},
+                                                                'rn4':{'partition':all_dataset_partitionDict_label[1][0][3],'label':all_dataset_partitionDict_label[1][1][3],'file_type':'simpleperf'}},
+
+                        'HPC_individual' :                     {'rn1':{'partition':all_dataset_partitionDict_label[2][0][0],'label':all_dataset_partitionDict_label[2][1][0],'file_type':'simpleperf'},
+                                                                'rn2':{'partition':all_dataset_partitionDict_label[2][0][1],'label':all_dataset_partitionDict_label[2][1][1],'file_type':'simpleperf'},
+                                                                'rn3':{'partition':all_dataset_partitionDict_label[2][0][2],'label':all_dataset_partitionDict_label[2][1][2],'file_type':'simpleperf'},
+                                                                'rn4':{'partition':all_dataset_partitionDict_label[2][0][3],'label':all_dataset_partitionDict_label[2][1][3],'file_type':'simpleperf'}},
+
+                        'DVFS_individual' :                    {'partition':all_dataset_partitionDict_label[3][0],'label':all_dataset_partitionDict_label[3][1],'file_type':'dvfs'},
+
+                        'DVFS_fusion' :                        {'partition':all_dataset_partitionDict_label[4][0],'label':all_dataset_partitionDict_label[4][1],'file_type':'dvfs'}
+                        }
+        
+        for x,y in zip(select_dataset['DVFS_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test'], select_dataset['HPC_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test']):
+            print(f"{x,y}\n")
 
 def main_worker(args):
     """
@@ -81,7 +145,7 @@ def main_worker(args):
         dataset_generator_instance.generate_dataset(download_file_flag=args.dataset_download_flag)
     
     # Get the dataset type and the partition dist for the dataset split generator
-    dsGen_dataset_type, dsGem_partition_dist = get_dataset_type_and_partition_dist(dataset_type = args.dataset_type)
+    dsGen_dataset_type, dsGem_partition_dist = dataloader_generator.get_dataset_type_and_partition_dist(dataset_type = args.dataset_type)
     # Get the dataset base location
     dataset_base_location = os.path.join(args.dataset_base_location, args.dataset_type)
 
@@ -89,10 +153,10 @@ def main_worker(args):
     dsGen = dataset_split_generator(seed=args.seed, 
                                     partition_dist=dsGem_partition_dist, 
                                     datasplit_dataset_type=dsGen_dataset_type)
-    x = dsGen.create_all_datasets(base_location=dataset_base_location)
+    all_datasets = dsGen.create_all_datasets(base_location=dataset_base_location)
 
     # Generate the dataloaders for all the classification tasks
-    
+    dataloader_dict = dataloader_generator.get_dataloader_for_all_classification_tasks(all_dataset_partitionDict_label = all_datasets, args=args)
     
 def main():
     ############################################## Setting up the experimental parameters ##############################################

@@ -1740,7 +1740,15 @@ class dataset_split_generator:
                         simpleperf_benign_file_dict[indx][file_path] = 1
                     elif file_path in simpleperf_malware_file_dict[indx]:
                         simpleperf_malware_file_dict[indx][file_path] = 1
-                
+        
+        elif (self.dataset_type == "bench-dataset"):
+            # If the dataset-type is bench-dataset, then populate the partition list with None
+            for _ in range(4):
+                DVFS_partition_for_HPC_DVFS_fusion.append(None)
+                HPC_partition_for_HPC_DVFS_fusion.append(None)
+        else:
+            raise ValueError("[Error in Datasplit generator] Incorrect dataset type passed.")
+        
         ################################ Unit tests for testing the HPC-DVFS fusion partitions ################################
         # print("********** Stats for HPC partitions HPC-DVFS fusion ********** ")
         # for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_DVFS_fusion):
