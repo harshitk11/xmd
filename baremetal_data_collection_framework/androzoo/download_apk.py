@@ -174,64 +174,78 @@ def download_apks(apk_list, download_path):
         print(f" - Downloading {SHA256}")
         os.system(cmd)
 
+class top10k_benign_apps:
+    @staticmethod
+    def create_hashtable_from_androzooCSV():
+        """
+        Reads the androzoo csv and creates a hash table with key=package_name. This will help in quickly accessing the entries of the csv file using the package name.
+        NOTE: This is a memory intensive operation and requires >30 GB of available RAM.
+        Output:
+            - androzoo_hashtable: Key=package_name, Value=[csv_info1, ...] ---> Can have multiple entries in the list in case of hash collisions.
+        """ 
+        print(" - Creating hashtable from androzoo csv file.")
+        androzoo_hashtable = {}
 
-def create_hashtable_from_androzooCSV():
-    """
-    Reads the androzoo csv and creates a hash table with key=package_name. This will help in quickly accessing the entries of the csv file using the package name.
-    
-    Output:
-        - androzoo_hashtable: Key=package_name, Value=[csv_info1, ...] ---> Can have multiple entries in the list in case of hash collisions.
-    """ 
-    androzoo_hashtable = {}
+        filename = "latest.csv"
+        with open(filename, "r") as csvfile:
+            datareader = csv.reader(csvfile)
 
-    filename = "latest.csv"
-    with open(filename, "r") as csvfile:
-        datareader = csv.reader(csvfile)
+            #Skip the header row
+            next(datareader)
+            
+            for indx,row in enumerate(datareader):
+                try:
+                    packageName = row[5]
+                    print(f"[{indx}] Processing {packageName}")
+                    if packageName in androzoo_hashtable:
+                        # Hash collision. Append the info to the list.
+                        androzoo_hashtable[packageName].append(row)
+                    else:
+                        # Add the info to the hash table
+                        androzoo_hashtable[packageName] = [row]            
+                except:
+                    continue
+               
+        return androzoo_hashtable
 
-        #Skip the header row
-        next(datareader)
+    @staticmethod
+    def match_top_apps_with_androzoo(xmd_base_folder):
+        """
+        Reads the list of top apps (present at /res/category_benign_malware_apk) and creates a hash table that merges the top apps info with 
+        the info found on the androzoo csv.
+
+        params:
+            - xmd_base_folder: Location of the xmd base folder
+        Output:
+            - top_app_androzooInfo_dict: Hash table:-
+                                    key = apk hash
+                                    value = {"androzoo_info":[],
+                                            "category": ... ,
+                                            "rank": ...}
+        """
+        # Create hash table from the androzoo csv file
+        androzoo_hashtable = top10k_benign_apps.create_hashtable_from_androzooCSV()
+
+        # Output
+        top_app_androzooInfo_dict = {}
         
-        for indx,row in enumerate(datareader):
-            try:
-                packageName = row[5]
-                if packageName in androzoo_hashtable:
-                    # Hash collision. Append the info to the list.
-                    androzoo_hashtable[packageName].append(row)
-                else:
-                    # Add the info to the hash table
-                    androzoo_hashtable[packageName] = [row]
-                
-            except:
-                continue
+        # Read top apps json file
+        with open(os.path.join(xmd_base_folder,"res/category_benign_malware_apk/top_apps_metadata.json")) as f:
+            topAppData = json.load(f)
+        
+        # For each app in the json file, fetch the corresponding info from androzoo csv file
+        for apkDat in topAppData:
+            if apkDat["pkg_name"] in androzoo_hashtable:
+                # Entry found. Get the info of all the occurences.
+                for androzoo_info in androzoo_hashtable[apkDat["pkg_name"]]:
+                    shaHash =  androzoo_info[0]
+                    # Add the entry
+                    top_app_androzooInfo_dict[shaHash] = {"androzoo_info":androzoo_info, "category": apkDat["category"], "rank":apkDat["rank"]}
+        
+        # Save the dict
+        with open("top_app_androzooInfo.json", 'w') as f:
+            json.dump(top_app_androzooInfo_dict, f, indent=4) 
 
-    return androzoo_hashtable
-
-def match_top_apps_with_androzoo(xmd_base_folder):
-    """
-    Reads the list of top apps (present at /res/category_benign_malware_apk) and creates a hash table that merges the top apps info with 
-    the info found on the androzoo csv.
-
-    params:
-        - xmd_base_folder: Location of the xmd base folder
-    Output:
-        - top_app_info_dict: Hash table with key= apk_hash and value= merged androzoo and top app info.
-    """
-    # Create hash table from the androzoo csv file
-    androzoo_hashtable = create_hashtable_from_androzooCSV()
-
-    # Output
-    top_app_info_dict = {}
-    
-    # Read top apps json file
-    with open(os.path.join(xmd_base_folder,"res/category_benign_malware_apk/top_apps_metadata.json")) as f:
-        topAppData = json.load(f)
-    
-    # For each app in the json file, fetch the corresponding info from androzoo csv file
-    for apkDat in topAppData:
-        # Iterate through the androzoo csv file and find the corresponding entry
-        continue
-    print(topAppData)
-    exit()
 
 def main():
     # Filter lookup table for the different datasets
@@ -246,12 +260,14 @@ def main():
         7:{"name":'cd_year3_malware', "num_apk":1000}
     }
 
+
     # Current directory [where the script is executing from]
     cur_path = os.path.dirname(os.path.realpath(__file__))
 
     # Base folder of xmd
     xmd_base_folder = os.path.join(cur_path.replace("/baremetal_data_collection_framework/androzoo",""),"")
-    match_top_apps_with_androzoo(xmd_base_folder=xmd_base_folder)
+    top10k_benign_apps.match_top_apps_with_androzoo(xmd_base_folder=xmd_base_folder)
+    exit()
 
     # Directory for storing the meta-info
     metInfo_path = os.path.join(cur_path, "metainfo")

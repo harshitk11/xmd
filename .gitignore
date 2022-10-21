@@ -19,11 +19,13 @@ results/
 # Ignore the pycache file
 src/__pycache__
 
+
 # Ignore the supporter files for downloading apks from androzoo
 baremetal_data_collection_framework/androzoo/latest.csv.gz
 baremetal_data_collection_framework/androzoo/latest.csv
 baremetal_data_collection_framework/androzoo/api_key
 baremetal_data_collection_framework/androzoo/apks/
+baremetal_data_collection_framework/androzoo/top_app_androzoo_info.json
 
 
 
