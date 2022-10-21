@@ -188,20 +188,23 @@ def create_hashtable_from_androzooCSV():
     with open(filename, "r") as csvfile:
         datareader = csv.reader(csvfile)
 
-        # Skip the header row
+        #Skip the header row
         next(datareader)
         
         for indx,row in enumerate(datareader):
             try:
-                package_name = 
-                ############################## Get the info from the row ##############################
-                vt_detection = int(row[7])
-                vt_scan_date = row[8]
-                # market_flag set to True only if the target market is found in the list of markets
-                market_flag = any([m == filter["market"] for m in row[10].split("|")])
-                #######################################################################################
+                packageName = row[5]
+                if packageName in androzoo_hashtable:
+                    # Hash collision. Append the info to the list.
+                    androzoo_hashtable[packageName].append(row)
+                else:
+                    # Add the info to the hash table
+                    androzoo_hashtable[packageName] = [row]
+                
             except:
                 continue
+
+    return androzoo_hashtable
 
 def match_top_apps_with_androzoo(xmd_base_folder):
     """
@@ -213,7 +216,8 @@ def match_top_apps_with_androzoo(xmd_base_folder):
     Output:
         - top_app_info_dict: Hash table with key= apk_hash and value= merged androzoo and top app info.
     """
-    create_hashtable_from_androzooCSV()
+    # Create hash table from the androzoo csv file
+    androzoo_hashtable = create_hashtable_from_androzooCSV()
 
     # Output
     top_app_info_dict = {}
