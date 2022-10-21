@@ -174,7 +174,60 @@ def download_apks(apk_list, download_path):
         print(f" - Downloading {SHA256}")
         os.system(cmd)
 
+
+def create_hashtable_from_androzooCSV():
+    """
+    Reads the androzoo csv and creates a hash table with key=package_name. This will help in quickly accessing the entries of the csv file using the package name.
     
+    Output:
+        - androzoo_hashtable: Key=package_name, Value=[csv_info1, ...] ---> Can have multiple entries in the list in case of hash collisions.
+    """ 
+    androzoo_hashtable = {}
+
+    filename = "latest.csv"
+    with open(filename, "r") as csvfile:
+        datareader = csv.reader(csvfile)
+
+        # Skip the header row
+        next(datareader)
+        
+        for indx,row in enumerate(datareader):
+            try:
+                package_name = 
+                ############################## Get the info from the row ##############################
+                vt_detection = int(row[7])
+                vt_scan_date = row[8]
+                # market_flag set to True only if the target market is found in the list of markets
+                market_flag = any([m == filter["market"] for m in row[10].split("|")])
+                #######################################################################################
+            except:
+                continue
+
+def match_top_apps_with_androzoo(xmd_base_folder):
+    """
+    Reads the list of top apps (present at /res/category_benign_malware_apk) and creates a hash table that merges the top apps info with 
+    the info found on the androzoo csv.
+
+    params:
+        - xmd_base_folder: Location of the xmd base folder
+    Output:
+        - top_app_info_dict: Hash table with key= apk_hash and value= merged androzoo and top app info.
+    """
+    create_hashtable_from_androzooCSV()
+
+    # Output
+    top_app_info_dict = {}
+    
+    # Read top apps json file
+    with open(os.path.join(xmd_base_folder,"res/category_benign_malware_apk/top_apps_metadata.json")) as f:
+        topAppData = json.load(f)
+    
+    # For each app in the json file, fetch the corresponding info from androzoo csv file
+    for apkDat in topAppData:
+        # Iterate through the androzoo csv file and find the corresponding entry
+        continue
+    print(topAppData)
+    exit()
 
 def main():
     # Filter lookup table for the different datasets
@@ -191,6 +244,10 @@ def main():
 
     # Current directory [where the script is executing from]
     cur_path = os.path.dirname(os.path.realpath(__file__))
+
+    # Base folder of xmd
+    xmd_base_folder = os.path.join(cur_path.replace("/baremetal_data_collection_framework/androzoo",""),"")
+    match_top_apps_with_androzoo(xmd_base_folder=xmd_base_folder)
 
     # Directory for storing the meta-info
     metInfo_path = os.path.join(cur_path, "metainfo")
