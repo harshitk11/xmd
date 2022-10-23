@@ -14,6 +14,7 @@ Please see [source code](/baremetal_data_collection_framework/androzoo/download_
 
 **NOTE:** We use the VirusTotal scan-date to timestamp the apk sample (instead of using the dex-date to timestamp the apk sample). As stated on the [Androzoo](https://androzoo.uni.lu) website:
 > the dex_date is mostly unusable nowadays: The vast majority of apps from Google Play have a 1980 dex_date. 
+
 Therefore, we use the VT scan-date option which provides the "First Submission" date when the apk sample was uploaded on VT. While this may not be the most accurate metric, it provides a rough indication of when the malware was actively in circulation [Ref](https://www.sciencedirect.com/science/article/pii/S0957417422005863#!). 
 
 ## Data-Collection Architecture
