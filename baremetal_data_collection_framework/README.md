@@ -10,7 +10,7 @@ We execute malware and benign Android apks that are downloaded from [Androzoo](h
 - CD-Year2-Dataset: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2021-01-01 to 2022-01-01. There are 1000 apks each for the malware and benign class.
 - CD-Year3-Dataset: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2022-01-01 to 2023-01-01. There are 1000 apks each for the malware and benign class.
 
-Please see [source code](/baremetal_data_collection_framework/androzoo/download_apk.py) for more details.
+Please see [source code](/baremetal_data_collection_framework/androzoo/download_apk.py) for details on dataset creation. More info about the apks in the dataset can be found in the [meta-info files](/baremetal_data_collection_framework/androzoo/metainfo).
 
 **NOTE:** We use the VirusTotal scan-date to timestamp the apk sample (instead of using the dex-date to timestamp the apk sample). As stated on the [Androzoo](https://androzoo.uni.lu) website, "the dex_date is mostly unusable nowadays: The vast majority of apps from Google Play have a 1980 dex_date". Therefore, we use the VT scan-date option which provides the "First Submission" date when the apk sample was uploaded on VT. While this may not be the most accurate metric, it provides a rough indication of when the malware was actively in circulation [Ref](https://www.sciencedirect.com/science/article/pii/S0957417422005863#!). 
 
