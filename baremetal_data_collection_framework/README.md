@@ -5,10 +5,10 @@ The Client is a Google Pixel-3 mobile device (running Android OS) on which the b
 
 ## APKs considered in the dataset.
 We execute malware and benign Android apks that are downloaded from [Androzoo](https://androzoo.uni.lu). The malware apks have 2 or more VirusTotal detections. The benign apks belong to top 50 of their respective categories on Google Play Store. The apk files are further sub-divided into the following datasets:
-- STD-Dataset: Used for training and tuning the ML models. This dataset has apks from 2018-01-01 to 2020-01-01. There are 2000 apks each for the malware and benign class.
-- CD-Year1-Dataset: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2020-01-01 to 2021-01-01. There are 1000 apks each for the malware and benign class.
-- CD-Year2-Dataset: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2021-01-01 to 2022-01-01. There are 1000 apks each for the malware and benign class.
-- CD-Year3-Dataset: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2022-01-01 to 2023-01-01. There are 1000 apks each for the malware and benign class.
+- **STD-Dataset**: Used for training and tuning the ML models. This dataset has apks from 2018-01-01 to 2020-01-01. There are 2000 apks each for the malware and benign class.
+- **CD-Year1-Dataset**: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2020-01-01 to 2021-01-01. There are 1000 apks each for the malware and benign class.
+- **CD-Year2-Dataset**: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2021-01-01 to 2022-01-01. There are 1000 apks each for the malware and benign class.
+- **CD-Year3-Dataset**: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2022-01-01 to 2023-01-01. There are 1000 apks each for the malware and benign class.
 
 Please see [source code](/baremetal_data_collection_framework/androzoo/download_apk.py) for details on dataset creation. More info about the apks in the dataset can be found in the [meta-info files](/baremetal_data_collection_framework/androzoo/metainfo).
 
