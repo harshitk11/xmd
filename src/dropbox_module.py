@@ -8,9 +8,6 @@ parser_info : dict for storing all the parser information for each of the apk fo
 
 Also has helper functions to analyse the statistics of the parser_info dict. And generates the plot of runtime distributions of malware and benign applications.
 
-
-
-
 """
 
 import contextlib
@@ -19,14 +16,13 @@ import sys
 import time
 import json
 from collections import Counter
-from parse_logcat import logcat_parser
+from utils import logcat_parser
 import traceback
 import dropbox
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import pandas as pd
-
 
 
 def list_folder_extension(dbx, res, rv):
