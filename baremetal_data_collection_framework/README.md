@@ -15,11 +15,13 @@ Please see [source code](/baremetal_data_collection_framework/androzoo/download_
 **NOTE:** We use the VirusTotal scan-date to timestamp the apk sample (instead of using the dex-date to timestamp the apk sample). As stated on the [Androzoo](https://androzoo.uni.lu) website:
 > the dex_date is mostly unusable nowadays: The vast majority of apps from Google Play have a 1980 dex_date. 
 
-Therefore, we use the VT scan-date option which provides the "First Submission" date when the apk sample was uploaded on VT. While this may not be the most accurate metric, it provides a rough indication of when the apk was actively in circulation [[Ref]](https://www.sciencedirect.com/science/article/pii/S0957417422005863#!). 
+Therefore, we use the VT scan-date option which provides the "First Submission" date when the apk sample was uploaded on VT. While this may not be the most accurate metric, it provides a rough indication of when the apk was actively in circulation [[Ref.]](https://www.sciencedirect.com/science/article/pii/S0957417422005863#!). 
 
 ## Data-Collection Architecture
-### Data-Collection Module
+The data collection architecture consists of three main components: the interaction module, the data-collection module, and the orchestrator module. The interaction module interacts with the application while it executes, the data-collection module collects the data logs in the background while the application is executing in the foreground, and the orchestrator is responsible for synchronizing sub-tasks. ![Figure](/baremetal_data_collection_framework/data-collection-flowchart-cropped.pdf) summarizes the overall flow of profiling and collecting the hardware telemetry logs for a single iteration of data collection.
 
+### Data-Collection Module
+The following
 ### Interaction Module
 
 ### Orchestrator Module
