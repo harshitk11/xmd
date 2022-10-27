@@ -3,6 +3,8 @@ The codebase for the bare-metal sandbox built for performing a large-scale autom
 
 The Client is a Google Pixel-3 mobile device (running Android OS) on which the benign and malicious samples are executed. The Host is a Linux OS-based PC that orchestrates the data collection. We leverage Android Debug Bridge [ADB](https://developer.android.com/studio/command-line/adb) for sending commands and transferring data between the Host and the Client. The network packets from the Client were routed through the Host using [Gnirehtet](https://github.com/Genymobile/gnirehtet), providing unfiltered Internet access to the Client, which is crucial for the malware to perform essential functionalities like communicating with their command-and-control (C2) server. Since we use a bare-metal analysis environment, a custom checkpointing scheme is developed to prevent data contamination from persistent malicious workloads.
 
+Integration with Dropbox: If provided with a dropbox token, the codebase seamlessly integrates with Dropbox cloud to push the collected logs, therefore, saving space on the local storage.
+
 ***The codebase is meant to act as a reference that can be used when designing a bare-metal data-collection framework for large-scale automated collection of behavioral telemetry for malicious Android-OS-based applications.***
 
 ## APKs considered in the dataset.
