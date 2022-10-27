@@ -423,8 +423,8 @@ def main():
         with open(os.path.join(metInfo_path, f"meta_info_{dataset_type['name']}.json"),"w") as f:
             json.dump(meta_info, f, indent=4)
 
-        # # Download the files
-        # download_apks(apk_list, download_path)
+        # Download the files
+        download_apks(apk_list, download_path)
     
     
 if(__name__=="__main__"):
