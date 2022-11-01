@@ -3,12 +3,17 @@ Contains all the utility classes and functions.
 """
 
 import argparse
+from genericpath import isfile
+import json
 import yaml
 from easydict import EasyDict as edict
 import re
 from datetime import datetime
 from datetime import timedelta
 import statistics
+from virus_total_apis import PublicApi as VirusTotalPublicApi
+import time
+import os
 
 
 class Config:
@@ -194,3 +199,158 @@ class logcat_parser:
             avg_freq = 0
 
         return avg_freq
+
+class malware_label_generator:
+    """
+    Contains helper functions to generate VT reports for AVClass [https://github.com/malicialab/avclass] (for malware label generation)
+    """
+    @staticmethod
+    def generate_hashlist(metainfo_path):
+        """
+        Generates the list of hashes from the metainfo file
+        params:
+            - metainfo_path: Path of the metainfo file from which the hash list needs to be extracted
+        Output:
+            - hashList: List of hashes extracted from the metainfo file
+        """
+        hashList = []
+        
+        with open(metainfo_path,'rb') as f:
+            mInfo = json.load(f)
+
+        for apkHash in mInfo:
+            hashList.append(apkHash)
+
+        return hashList
+
+    @staticmethod
+    def get_vt_report(hashList, outputFilePath):
+        """
+        Takes as input list of hashes and outputs a dict with key = hash and value = report
+        
+        params:
+            - hashList: List of hashes for which the vt report needs to be generated
+            - outputFilePath: Path of the output file where the report_dict will be dumped
+
+        Output:
+            - report_dict: key = hash and value = report
+        """
+        # Dict containing the hash: report pair [This is the final output]
+        report_dict = {}
+        # Checkpointing: If the report file already exists, then read it into report_dict 
+        if os.path.isfile(outputFilePath):
+            with open(outputFilePath,'rb') as fp:
+                report_dict = json.load(fp)
+
+        # VT api key
+        API_KEY = '923484b3eda16aa049893c79daa4400feed119bb33e93386d39bd889b18d1713'
+
+        #Instantiate the VT API   
+        vt = VirusTotalPublicApi(API_KEY)
+
+        # MAX_REQUEST in a day-delay between the sample is adjusted accordingly
+        MAX_REQUEST=480
+
+        for indx, hash in enumerate(hashList):
+            # Checkpointing: If the report already exists in report_dict then skip this hash
+            if hash in report_dict:
+                continue
+
+            response = vt.get_file_report(hash)         
+            if(response['response_code']==200 and response['results']['response_code']==1):
+                report_dict[hash] = response
+                with open(outputFilePath,'w') as fp:
+                    json.dump(report_dict,fp)
+                positive=response['results']['positives']
+                total=response['results']['total']
+                print (f"- [{indx}] Hash : {hash} | Num positives : {positive} | Total : {total}")                
+            else:
+                print("Skipping this app BAD Request or Not available in the repo")
+
+            # We want MAX_REQUEST requests in 1 day    
+            time.sleep(int(24*60*60.0/MAX_REQUEST))
+
+        return report_dict
+
+    @staticmethod
+    def generate_vt_report_all_malware(metaInfoPath, outputReportPath):
+        """
+        Generates VT report for all the malware in the all the datasets: STD, CDyear1, CDyear2, CDyear3
+        
+        params:
+            - metaInfoPath: Base directory of the folder where all the meta info files are stored
+            - outputReportPath: Path where the vt report file will be stored
+        """
+        dataset_type = ["std","cd_year1","cd_year2","cd_year3"]
+
+        # Generating a combined hash list containing hashes of malware in all the datasets
+        hashListAllMalware = []
+        for datType in dataset_type:
+            mPath = os.path.join(metaInfoPath, f"meta_info_{datType}_malware.json")
+            hashListAllMalware += malware_label_generator.generate_hashlist(metainfo_path = mPath)
+
+        # Now generate the vt report
+        malware_label_generator.get_vt_report(hashList = hashListAllMalware, 
+                                            outputFilePath = outputReportPath)
+
+    @staticmethod
+    def read_vt_and_convert_to_avclass_format(infile, outfile):
+        """
+        Reads the vt report and converts it into a format that Euphony can process.
+        Euphony reades a sequence of reports from VirusTotal formatted as JSON records (one per line)
+
+        params:
+            - infile: Path of the vt report that should be converted to the simplified JSON format used by AVClass2 
+            - outfile: Path of the output file
+        """
+        with open(infile,"rb") as f:
+            vt_rep = json.load(f)
+
+        # simplified json format used by avclass {md5, sha1, sha256, av_labels}
+        avclass_list = []
+        for _,vt_report in vt_rep.items():
+
+            # Generate av labels for each antivirus
+            avclass_avlabel_entry = []
+            for av, avReport in vt_report["results"]["scans"].items():
+                if avReport["detected"] == True:
+                    avclass_avlabel_entry.append([av,avReport["result"]])
+            
+            # If no av detections then skip this file 
+            if avclass_avlabel_entry:
+                avclass_entry = {}
+                avclass_entry["sha1"] = vt_report["results"]["sha1"]
+                avclass_entry["md5"] = vt_report["results"]["md5"]
+                avclass_entry["sha256"] = vt_report["results"]["sha256"]
+                avclass_entry["av_labels"] = avclass_avlabel_entry
+                avclass_list.append(avclass_entry)
+        
+        # Output the list into a file with one report per line
+        with open(outfile,'w') as f:
+            f.write("\n".join(map(str,avclass_list)).replace("'",'"'))
+                
+        
+def main():
+    # Current directory [where the script is executing from]
+    cur_path = os.path.dirname(os.path.realpath(__file__))
+    
+    # Base folder of xmd
+    xmd_base_folder = cur_path.replace("/src","")
+    
+    # Folder storing the metaInfo files
+    metaInfoPath = os.path.join(xmd_base_folder, "baremetal_data_collection_framework", "androzoo", "metainfo")
+
+    # Path where the final vt report will be saved
+    vtReportSavePath = os.path.join(xmd_base_folder,"res","virustotal","hash_VT_report_all_malware.json")
+
+    # Generate the VT report
+    eParse = malware_label_generator()
+    eParse.generate_vt_report_all_malware(metaInfoPath = metaInfoPath, outputReportPath = vtReportSavePath)
+    
+    ########################################## Generating VT report for feeding to AVClass ################################################################
+    # eParse.read_vt_and_convert_to_avclass_format(infile= "/data/hkumar64/projects/arm-telemetry/xmd/res/virustotal/hash_virustotal_report_malware", 
+    #                                             outfile="/data/hkumar64/projects/arm-telemetry/xmd/res/virustotal/avclass_virustotal_report_malware.vt")
+    #######################################################################################################################################################
+if(__name__=="__main__"):
+	main()
+

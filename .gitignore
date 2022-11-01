@@ -27,5 +27,8 @@ baremetal_data_collection_framework/androzoo/api_key
 baremetal_data_collection_framework/androzoo/apks/
 baremetal_data_collection_framework/androzoo/top_app_androzoo_info.json
 
+# Ignore the avclass files
+avclass/
+
 
 
