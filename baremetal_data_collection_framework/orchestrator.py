@@ -45,7 +45,7 @@ samp_time_perf= 100 # This is in ms
 run_time= monkey_interaction_time + broadcast_event_interaction_time + monkey_interaction_time
 
 # Number of apk runs with errors, beyond which we abort the apk and move on to the next apk
-abort_threshold = 4
+abort_threshold = 2
 
 ############################################################## System Broadcast Events ##############################################################
 sys_broadcast_event = ['BOOT_COMPLETED','SMS_RECEIVED','SCREEN_ON','WAP_PUSH_RECEIVED','CONNECTIVITY_CHANGE','PICK_WIFI_WORK','PHONE_STATE',
@@ -456,6 +456,7 @@ def check_low_battery_power():
 	get_power_raw = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE).stdout
 	time.sleep(1)
 	power_raw_string = get_power_raw.read().decode()
+	print(f" ----- Current battery level : {power_raw_string} ----- ")
 
 	if (int(power_raw_string) < 15):
 		# The purpose of this routine is to give the device some time to recharge [and reduces manual intervention]
@@ -501,7 +502,7 @@ def reboot_device():
 	# Check if the device has booted up
 	while not firmware_flash_script.check_device_boot_up():
 		print(f"[{firmware_flash_script.get_local_time()}] Waiting for the device to boot up.")
-		time.sleep(2)
+		time.sleep(4)
 
 def reset_device():
 	"""
@@ -867,6 +868,9 @@ def main():
 		############################################## ---------- USENIX winter submission ---------- ##############################################
 		## Benign samples for the std-dataset 
 		"std_benign":['/home/harshit/research/androidzoo/usenix/std_benign/',0]
+
+		## Malware samples for the std-dataset 
+		# "std_malware":['/home/harshit/research/androidzoo/usenix/std_malware/',1]
 		############################################################################################################################################
 
 
