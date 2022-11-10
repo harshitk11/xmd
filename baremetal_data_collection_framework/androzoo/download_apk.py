@@ -78,16 +78,18 @@ def read_csvfile(filter, num_files):
     return apk_list, meta_info
     
 
-def get_filter(dataset_type):
+def get_filter(dataset_type, vt_detection_threshold = 10):
     """
     Returns the filter for the dataset_type provided as input.
     params:
         - dataset_type : Can take one of the following values {std_benign, std_malware, cd_year1_benign, cd_year1_malware,
                                                                 cd_year2_benign, cd_year2_malware, cd_year3_benign, cd_year3_malware}
+        - vt_detection_threshold : Minimum number of vt detections for the malware apks
 
     Output:
         - filter : Dict representing the filter values
     """
+
     ############################### Filters for the STD-Dataset ###############################
     if dataset_type=='std_benign':
         std_benign_filter = {"vt_detection_threshold_low":None,    # For confirming malware
@@ -98,7 +100,7 @@ def get_filter(dataset_type):
         return std_benign_filter
     
     elif dataset_type=='std_malware':
-        std_malware_filter = {"vt_detection_threshold_low":2,    # For confirming malware
+        std_malware_filter = {"vt_detection_threshold_low":vt_detection_threshold,    # For confirming malware
                         "vt_detection_threshold_high":None,    # For identifying malware and benign apks
                         "vt_scandate_threshold_start":'2018-01-01 00:00:00',    # For the concept drift study
                         "vt_scandate_threshold_end":'2020-01-01 00:00:00',
@@ -115,7 +117,7 @@ def get_filter(dataset_type):
         return cd_year1_benign_filter
     
     elif dataset_type=='cd_year1_malware':
-        cd_year1_malware_filter = {"vt_detection_threshold_low":2,    # For confirming malware
+        cd_year1_malware_filter = {"vt_detection_threshold_low":vt_detection_threshold,    # For confirming malware
                             "vt_detection_threshold_high":None,    # For identifying malware and benign apks
                             "vt_scandate_threshold_start":'2020-01-01 00:00:00',    # For the concept drift study
                             "vt_scandate_threshold_end":'2021-01-01 00:00:00',
@@ -132,7 +134,7 @@ def get_filter(dataset_type):
         return cd_year2_benign_filter
     
     elif dataset_type=='cd_year2_malware':
-        cd_year2_malware_filter = {"vt_detection_threshold_low":2,    # For confirming malware
+        cd_year2_malware_filter = {"vt_detection_threshold_low":vt_detection_threshold,    # For confirming malware
                             "vt_detection_threshold_high":None,    # For identifying malware and benign apks
                             "vt_scandate_threshold_start":'2021-01-01 00:00:00',    # For the concept drift study
                             "vt_scandate_threshold_end":'2022-01-01 00:00:00',
@@ -149,7 +151,7 @@ def get_filter(dataset_type):
         return cd_year3_benign_filter
 
     elif dataset_type=='cd_year3_malware':    
-        cd_year3_malware_filter = {"vt_detection_threshold_low":2,    # For confirming malware
+        cd_year3_malware_filter = {"vt_detection_threshold_low":vt_detection_threshold,    # For confirming malware
                             "vt_detection_threshold_high":None,    # For identifying malware and benign apks
                             "vt_scandate_threshold_start":'2022-01-01 00:00:00',    # For the concept drift study
                             "vt_scandate_threshold_end":'2023-01-01 00:00:00',
@@ -380,14 +382,14 @@ class top10k_benign_apps:
 def main():
     # Filter lookup table for the different datasets
     filter_dict = {
-        0:{"name":'std_benign', "num_apk":2000 , "apk_type":"benign"},
-        # 1:{"name":'std_malware', "num_apk":2000, "apk_type":"malware"},
-        2:{"name":'cd_year1_benign', "num_apk":1000, "apk_type":"benign"},
-        # 3:{"name":'cd_year1_malware', "num_apk":1000, "apk_type":"malware"},
-        4:{"name":'cd_year2_benign', "num_apk":1000, "apk_type":"benign"},
-        # 5:{"name":'cd_year2_malware', "num_apk":1000, "apk_type":"malware"},
-        6:{"name":'cd_year3_benign', "num_apk":1000, "apk_type":"benign"},
-        # 7:{"name":'cd_year3_malware', "num_apk":1000, "apk_type":"malware"}
+        # 0:{"name":'std_benign', "num_apk":2000 , "apk_type":"benign"},
+        1:{"name":'std_malware_vt10', "num_apk":1000, "apk_type":"malware"},
+        # 2:{"name":'cd_year1_benign', "num_apk":1000, "apk_type":"benign"},
+        3:{"name":'cd_year1_malware', "num_apk":500, "apk_type":"malware"},
+        # 4:{"name":'cd_year2_benign', "num_apk":1000, "apk_type":"benign"},
+        5:{"name":'cd_year2_malware', "num_apk":500, "apk_type":"malware"},
+        # 6:{"name":'cd_year3_benign', "num_apk":1000, "apk_type":"benign"},
+        7:{"name":'cd_year3_malware', "num_apk":500, "apk_type":"malware"}
     }
 
 
@@ -412,7 +414,7 @@ def main():
 
         # Get the file-list and the meta-info for this dataset
         if dataset_type["apk_type"] == "malware":
-            apk_list, meta_info = read_csvfile(filter=get_filter(dataset_type["name"]), num_files=dataset_type["num_apk"])
+            apk_list, meta_info = read_csvfile(filter=get_filter(dataset_type= dataset_type["name"], vt_detection_threshold = 10), num_files=dataset_type["num_apk"])
         elif dataset_type["apk_type"] == "benign":
             # For benign we are using the top 10k apps
             apk_list, meta_info = top10k_benign_apps.generate_apklist_and_metainfo(xmd_base_folder = xmd_base_folder, 

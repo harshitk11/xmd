@@ -8,7 +8,7 @@ Integration with Dropbox: If provided with a dropbox token, the codebase seamles
 ***The codebase is meant to act as a reference that can be used when designing a bare-metal data-collection framework for large-scale automated collection of behavioral telemetry for malicious Android-OS-based applications.***
 
 ## APKs considered in the dataset.
-We execute malware and benign Android apks downloaded from [Androzoo](https://androzoo.uni.lu). The malware apks have two or more VirusTotal detections. The benign apks belong to the top 50 of their respective categories on Google Play Store. The apk files are further sub-divided into the following datasets:
+We execute malware and benign Android apks downloaded from [Androzoo](https://androzoo.uni.lu). The malware apks have ten or more VirusTotal detections. The benign apks belong to the top 50 of their respective categories on Google Play Store. The apk files are further sub-divided into the following datasets:
 - **STD-Dataset**: Used for training and tuning the ML models. This dataset has apks from 2018-01-01 to 2020-01-01. There are 2000 apks each for the malware and benign class.
 - **CD-Year1-Dataset**: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2020-01-01 to 2021-01-01. There are 1000 apks each for the malware and benign class.
 - **CD-Year2-Dataset**: Used for evaluating the models trained on STD-Dataset. This dataset has apks from 2021-01-01 to 2022-01-01. There are 1000 apks each for the malware and benign class.
