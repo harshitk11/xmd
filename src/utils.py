@@ -34,6 +34,7 @@ class Config:
         for key,val in self.args.items():
             print(f"{key}: {val}")
         print(f"------------------------------------------------------------------------")
+    
     def update(self, updatefile):
         """
         This method updates the base-configuration file based on the values read from the updatefile.
@@ -265,7 +266,8 @@ class malware_label_generator:
                 total=response['results']['total']
                 print (f"- [{indx}] Hash : {hash} | Num positives : {positive} | Total : {total}")                
             else:
-                print("Skipping this app BAD Request or Not available in the repo")
+                print(response)
+                print(f"- [{indx}] Skipping this app BAD Request or Not available in the repo : {hash}")
 
             # We want MAX_REQUEST requests in 1 day    
             time.sleep(int(24*60*60.0/MAX_REQUEST))
@@ -292,6 +294,40 @@ class malware_label_generator:
         # Now generate the vt report
         malware_label_generator.get_vt_report(hashList = hashListAllMalware, 
                                             outputFilePath = outputReportPath)
+
+    @staticmethod
+    def generate_vt_detection_distribution(VTReportPath):
+        """
+        Reads the virustotal report and outputs the distribution of the vt detections vs number of applications
+
+        params:
+            - VTReportPath: Path of the VT report
+        Output:
+            - detectionDistribution: Dict with key=vt detection and value= # of apks
+        """
+        detectionDistribution = {}
+
+        # Get the report
+        with open(VTReportPath,"rb") as f:
+            vt_rep = json.load(f)
+
+        for hash, vtReport in vt_rep.items():
+            numPositives = vtReport['results']['positives']
+            
+            if numPositives in detectionDistribution:
+                detectionDistribution[numPositives] += 1
+            else:
+                detectionDistribution[numPositives] = 1
+
+        # Sort on the basis of num detections
+        detectionDistribution = {k:v for k,v in sorted(detectionDistribution.items(), key = lambda item: item[1], reverse=True)}
+
+        print(f"#Detections\t#Apks")
+        for numDetection, numApps in detectionDistribution.items():
+            print(f"{numDetection}\t{numApps}")
+                
+        return detectionDistribution
+
 
     @staticmethod
     def read_vt_and_convert_to_avclass_format(infile, outfile):
@@ -345,8 +381,10 @@ def main():
 
     # Generate the VT report
     eParse = malware_label_generator()
-    eParse.generate_vt_report_all_malware(metaInfoPath = metaInfoPath, outputReportPath = vtReportSavePath)
+    # eParse.generate_vt_report_all_malware(metaInfoPath = metaInfoPath, outputReportPath = vtReportSavePath)
     
+    # Get the detection distribution
+    eParse.generate_vt_detection_distribution(VTReportPath="/data/hkumar64/projects/arm-telemetry/xmd/res/virustotal/hash_VT_report_all_malware.json")
     ########################################## Generating VT report for feeding to AVClass ################################################################
     # eParse.read_vt_and_convert_to_avclass_format(infile= "/data/hkumar64/projects/arm-telemetry/xmd/res/virustotal/hash_virustotal_report_malware", 
     #                                             outfile="/data/hkumar64/projects/arm-telemetry/xmd/res/virustotal/avclass_virustotal_report_malware.vt")
