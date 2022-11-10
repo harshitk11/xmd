@@ -18,6 +18,8 @@ def read_csvfile(filter, num_files):
         - meta_info : Dict with key = hash and value = meta-info of the apk (sha256, sha1, md5, apk_size, dex_size, dex_date, pkg_name, vercode, 
                                                                             vt_detection, vt_scan_date, markets)
     """
+    if filter is None:
+        raise ValueError("Filter is None")
     
     apk_list = []
     meta_info = {}
@@ -71,8 +73,8 @@ def read_csvfile(filter, num_files):
                 # If we have enough apks, then terminate
                 if nApk >= num_files:
                     break
-            
-            except:
+                
+            except Exception as e:
                 continue
 
     return apk_list, meta_info
@@ -383,13 +385,13 @@ def main():
     # Filter lookup table for the different datasets
     filter_dict = {
         # 0:{"name":'std_benign', "num_apk":2000 , "apk_type":"benign"},
-        1:{"name":'std_malware_vt10', "num_apk":1000, "apk_type":"malware"},
-        # 2:{"name":'cd_year1_benign', "num_apk":1000, "apk_type":"benign"},
-        3:{"name":'cd_year1_malware', "num_apk":500, "apk_type":"malware"},
-        # 4:{"name":'cd_year2_benign', "num_apk":1000, "apk_type":"benign"},
-        5:{"name":'cd_year2_malware', "num_apk":500, "apk_type":"malware"},
-        # 6:{"name":'cd_year3_benign', "num_apk":1000, "apk_type":"benign"},
-        7:{"name":'cd_year3_malware', "num_apk":500, "apk_type":"malware"}
+        # 1:{"name":'std_malware_vt10', "num_apk":2000, "apk_type":"malware", "dataset_type":"std_malware"},
+        # 2:{"name":'cd_year1_benign', "num_apk":1000, "apk_type":"benign", "dataset_type":"cd_year1_benign"},
+        3:{"name":'cd_year1_malware', "num_apk":1000, "apk_type":"malware", "dataset_type":"cd_year1_malware"},
+        # 4:{"name":'cd_year2_benign', "num_apk":1000, "apk_type":"benign", "dataset_type":"cd_year2_benign"},
+        5:{"name":'cd_year2_malware', "num_apk":1000, "apk_type":"malware", "dataset_type":"cd_year2_malware"},
+        # 6:{"name":'cd_year3_benign', "num_apk":1000, "apk_type":"benign", "dataset_type":"cd_year3_benign"},
+        7:{"name":'cd_year3_malware', "num_apk":1000, "apk_type":"malware", "dataset_type":"cd_year3_malware"}
     }
 
 
@@ -414,11 +416,11 @@ def main():
 
         # Get the file-list and the meta-info for this dataset
         if dataset_type["apk_type"] == "malware":
-            apk_list, meta_info = read_csvfile(filter=get_filter(dataset_type= dataset_type["name"], vt_detection_threshold = 10), num_files=dataset_type["num_apk"])
+            apk_list, meta_info = read_csvfile(filter=get_filter(dataset_type= dataset_type["dataset_type"], vt_detection_threshold = 10), num_files=dataset_type["num_apk"])
         elif dataset_type["apk_type"] == "benign":
             # For benign we are using the top 10k apps
             apk_list, meta_info = top10k_benign_apps.generate_apklist_and_metainfo(xmd_base_folder = xmd_base_folder, 
-                                                                                filter=get_filter(dataset_type["name"]), 
+                                                                                filter=get_filter(dataset_type["dataset_type"]), 
                                                                                 num_files=dataset_type["num_apk"],
                                                                                 dataset_type=dataset_type["name"])
         # Save the meta_info
