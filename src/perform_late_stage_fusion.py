@@ -3,7 +3,7 @@ import datetime
 import stat
 import torch
 from utils import Config
-from create_dataset import dataset_generator_downloader, dataset_split_generator
+from create_dataset import dataset_generator_downloader, dataset_split_generator, custom_collator
 import os
 import shutil
 
@@ -58,7 +58,7 @@ class dataloader_generator:
                                                     'HPC_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":False, "test":False},
                                                     'HPC_individual':{"train":True, "trainSG":False, "test":True},
                                                     'DVFS_individual':{"train":True, "trainSG":False, "test":True},
-                                                    'DVFS_fusion':{"train":True, "trainSG":False, "test":True}}
+                                                    'DVFS_fusion':{"train":False, "trainSG":False, "test":True}}
                                     }
 
     @staticmethod
@@ -93,6 +93,57 @@ class dataloader_generator:
 
         return dsGen_dataset_type, dsGem_partition_dist
 
+    @staticmethod
+    def prepare_dataloader(partition_dict, labels, file_type, dataset_type, clf_toi, args):
+        """ 
+        Configure the dataloader. Based on the dataset type and the classification task of interest,
+        this will return dataloaders for the tasks: "train","trainSG","test".
+
+        params: 
+            - partition_dict : {'train' : [file_path1, file_path2, ..],
+                            'trainSG' : [file_path1, file_path2, ..],
+                            'test' : [file_path1, file_path2]}
+
+            - labels : {file_path1 : 1, file_path2: 0, ...}
+            - file_type : 'dvfs' or 'simpleperf'
+            - dataset_type : Type of dataset. Can take one of the following values: {"std-dataset","bench-dataset","cd-dataset"}
+            - clf_toi : Classification task of interest. Can take one of the following values:
+                    ["DVFS_partition_for_HPC_DVFS_fusion", "HPC_partition_for_HPC_DVFS_fusion", "HPC_individual", "DVFS_individual", "DVFS_fusion"]
+            - args :  arguments from the config file
+
+        Output: 
+            - train, trainSG, and test dataloader objects depending on the dataset_type
+        """
+
+        print(f'[Info] Fetching dataloader objects for dataset:{dataset_type} and for channel: {file_type} ...')
+    
+        # Find the partitions that will be required for this dataset. required_partitions = {"train":T or F, "trainSG":T or F, "test":T or F}
+        required_partitions = dataloader_generator.partition_activation_flags[dataset_type][clf_toi]
+        
+        # Intitialize the custom collator
+        custom_collate_fn = custom_collator(args=args,
+                                            file_type=file_type)
+
+        # Determine the value of validation_present flag based on whether 'val' is present in partition dict
+        validation_present = False
+        if 'val' in partition_dict.keys():
+            validation_present = True
+        
+        # Normalize flag set to True for file_type = 'dvfs' and False for file_type = 'simpleperf'
+        if file_type=='dvfs':
+            normalize_flag = True
+        elif file_type=='simpleperf':
+            normalize_flag = False
+        else:
+            raise ValueError("Incorrect file_type passed to wrapper for dataloader")
+
+        # Get the dataloader object : # get_dataloader() returns an object that is returned by torch.utils.data.DataLoader
+        trainloader, validloader, testloader = get_dataloader(opt, partition = partition_dict, labels = labels, custom_collate_fn =custom_collate_fn,
+                                                            validation_present=validation_present, normalize_flag=normalize_flag, file_type= file_type, N = None)
+
+        # NOTE: If validation_present is False, then validloader is None
+        return trainloader, validloader, testloader
+    
     @staticmethod
     def get_dataloader_for_all_classification_tasks(all_dataset_partitionDict_label, dataset_type, args):
         """
@@ -151,7 +202,7 @@ class dataloader_generator:
                         'DVFS_fusion' :                        {'partition':all_dataset_partitionDict_label[4][0],'label':all_dataset_partitionDict_label[4][1],'file_type':'dvfs'}
                         }
         
-        
+
         # for x,y in zip(select_dataset['DVFS_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test'], select_dataset['HPC_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test']):
         #     print(f"{x,y}\n")
         # Partition flags for selecting the partitions that will be used for a specific dataset type
@@ -202,6 +253,8 @@ def main():
         cfg.export_config(os.path.join(args.run_dir, 'final_config.yaml'))
     ####################################################################################################################################
 
+    # Duration of the time series that will be used
+    args.truncated_duration = 30
     # Start the analysis
     main_worker(args=args)
 
