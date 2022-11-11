@@ -140,34 +140,33 @@ def get_common_apps(path_list):
     return common_app_hashes
 
 
-''' This is the Dataset object.
-A Dataset object loads the training or test data into memory.
-Your custom Dataset class MUST inherit torch's Dataset
-Your custom Dataset class should have 3 methods implemented (you can add more if you want but these 3 are essential):
-__init__(self) : Performs data loading
-__getitem__(self, index) :  Will allow for indexing into the dataset eg dataset[0]
-__len__(self) : len(dataset)
-'''
-# Custom dataset class for the dataloader
 class arm_telemetry_data(torch.utils.data.Dataset):
+    ''' 
+    This is the Dataset object.
+    A Dataset object loads the training or test data into memory.
+    Your custom Dataset class MUST inherit torch's Dataset
+    Your custom Dataset class should have 3 methods implemented (you can add more if you want but these 3 are essential):
+    __init__(self) : Performs data loading
+    __getitem__(self, index) :  Will allow for indexing into the dataset eg dataset[0]
+    __len__(self) : len(dataset)
+    '''
 
-    def __init__(self, partition, labels, split, file_type, normalize=True):
+    def __init__(self, partition, labels, split, file_type, normalize):
         '''
             -labels = {file_path1 : 0, file_path2: 0, ...}
 
             -partition = {'train' : [file_path1, file_path2, ..],
-                                'test' : [file_path1, file_path2, ..],
+                                'trainSG' : [file_path1, file_path2, ..],
                                 'val' : [file_path1, file_path2]}
 
-            -split = 'train', 'test', or 'val'
+            -split = 'train', 'trainSG', or 'val'
             -file_type = 'dvfs' or 'simpleperf' [Different parsers for different file types]                    
         '''
-        if(split not in ['train','test','val']):
-            raise NotImplementedError('Can only accept Train, Val, Test')
+        if(split not in ['train','trainSG','test']):
+            raise NotImplementedError('Can only accept Train, TrainSG, Test')
 
         # Store the list of paths (ids) in the split
         self.path_ids = partition[split] 
-        # print(f"- List of first 10 path ids : {self.path_ids[:10]}")
         
         # Store the list of labels
         self.labels = labels
@@ -192,11 +191,10 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         elif self.file_type == 'simpleperf':
             # Read and parse the simpleperf file
             X = self.read_simpleperf_file(id)
-            
         else:
             raise ValueError('Incorrect file type provided to the dataloader')
-        
         X_std = X
+        
         # Normalize
         if self.normalize:
             # X : Nchannel x num_data_points
@@ -331,105 +329,113 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         
 
 # Returns the dataloader object that can be used to get batches of data
-def get_dataloader(opt, partition, labels, custom_collate_fn, validation_present, normalize_flag = True, file_type = None, N=None):
+def get_dataloader(args, partition, labels, custom_collate_fn, required_partitions, normalize_flag = True, file_type = None, N=None):
     '''
-    Input: -partition = {'train' : [file_path1, file_path2, ..],
+    Returns the dataloader objects for the different partitions.
+
+    params: 
+        -partition = {'train' : [file_path1, file_path2, ..],
                             'test' : [file_path1, file_path2, ..],
                             'val' : [file_path1, file_path2]}
                             
-           -labels : {file_path1 : 0, file_path2: 1, ...}  (Benigns have label 0 and Malware have label 1)
-           
-           -custom_collate_fn : Custom collate function object (Resamples and creates a batch of spectrogram B,T_chunk,Nch,H,W)
+        -labels : {file_path1 : 0, file_path2: 1, ...}  (Benigns have label 0 and Malware have label 1)
+        
+        -custom_collate_fn : Custom collate function object (Resamples and creates a batch of spectrogram B,T_chunk,Nch,H,W)
 
-           -validation_present : True if 'val' split is present in the parition dict. False otherwise.           
-           
-           -N  : [num_training_samples, num_validation_samples, num_testing_samples]
-                  If N is specified, then we are selecting a subset of files from the dataset 
+        -required_partitions : required_partitions = {"train":T or F, "trainSG":T or F, "test":T or F}           
+        
+        -N  : [num_training_samples, num_trainSG_samples, num_testing_samples]
+                If N is specified, then we are selecting a subset of files from the dataset 
 
-           -normalize_flag : Will normalize the data if set to True. [Should be set to True for 'dvfs' and False for 'simpleperf'] 
+        -normalize_flag : Will normalize the data if set to True. [Should be set to True for 'dvfs' and False for 'simpleperf'] 
 
-           -file_type : 'dvfs' or 'simpleperf' -> Different parsers used for each file_type
+        -file_type : 'dvfs' or 'simpleperf' -> Different parsers used for each file_type
 
-    Output: Dataloader object for training, validation, and test data.
+    Output: 
+        - trainloader, trainSGloader, testloader : Dataloader object for train, trainSG, and test data.
     '''
-    
-    # Initialize the custom dataset class for training, validation, and test data
-    ds_train_full = arm_telemetry_data(partition, labels, split='train', file_type= file_type, normalize=normalize_flag)
-    
-    if validation_present:
-        ds_val_full = arm_telemetry_data(partition, labels, split='val', file_type= file_type, normalize=normalize_flag)
-    
-    ds_test_full = arm_telemetry_data(partition, labels, split='test', file_type= file_type, normalize=normalize_flag)
+    trainloader, trainSGloader, testloader = None, None, None
 
-    # Check if you are using a subset of the complete dataset
+    # Initialize the custom dataset class for training, validation, and test data
+    if required_partitions["train"]:
+        ds_train_full = arm_telemetry_data(partition, labels, split='train', file_type= file_type, normalize=normalize_flag)
+    
+    if required_partitions["trainSG"]:
+        ds_trainSG_full = arm_telemetry_data(partition, labels, split='val', file_type= file_type, normalize=normalize_flag)
+    
+    if required_partitions["test"]:
+        ds_test_full = arm_telemetry_data(partition, labels, split='test', file_type= file_type, normalize=normalize_flag)
+
     if N is not None:
         # You are using a subset of the complete dataset
         print(f'[Info] ############### Using Subset : Num_train = {N[0]}, Num_val = {N[1]}, Num_test = {N[2]} ##################')
         if len(N) != 3:
             raise NotImplementedError('Size of Array should be 3')
 
-        if N[0] > ds_train_full.__len__():
-            raise NotImplementedError(f"More samples than present in DS. Demanded : {N[0]} | Available: {ds_train_full.__len__()}")
+        if (required_partitions["train"]):
+            if (N[0] > ds_train_full.__len__()):
+                raise NotImplementedError(f"More samples than present in DS. Demanded : {N[0]} | Available: {ds_train_full.__len__()}")
+            else:
+                indices = torch.arange(N[0])
+                ds_train = data_utils.Subset(ds_train_full, indices)
 
-        if validation_present:
-            if N[1] > ds_val_full.__len__():
-                raise NotImplementedError(f'More samples than present in DS. Demanded : {N[1]} | Available: {ds_val_full.__len__()}')
+        if (required_partitions["trainSG"]):
+            if (N[1] > ds_trainSG_full.__len__()):
+                raise NotImplementedError(f'More samples than present in DS. Demanded : {N[1]} | Available: {ds_trainSG_full.__len__()}')
+            else:
+                indices = torch.arange(N[1])
+                ds_trainSG = data_utils.Subset(ds_trainSG_full, indices)
 
-        if N[2] > ds_test_full.__len__():
-            raise NotImplementedError(f'More samples than present in DS. Demanded : {N[2]} | Available: {ds_test_full.__len__()}')
+        if (required_partitions["test"]):
+            if (N[2] > ds_test_full.__len__()):
+                raise NotImplementedError(f'More samples than present in DS. Demanded : {N[2]} | Available: {ds_test_full.__len__()}')
+            else:
+                indices = torch.arange(N[2])
+                ds_test = data_utils.Subset(ds_test_full, indices)
 
-        
-        indices = torch.arange(N[0])
-        ds_train = data_utils.Subset(ds_train_full, indices)
-
-        if validation_present:
-            indices = torch.arange(N[1])
-            ds_val = data_utils.Subset(ds_val_full, indices)
-
-        indices = torch.arange(N[2])
-        ds_test = data_utils.Subset(ds_test_full, indices)
-
-    else: # Using the complete dataset
-        ds_train = ds_train_full
-        
-        if validation_present:
-            ds_val = ds_val_full
-        
-        ds_test = ds_test_full
-
+    else: 
+        # Using the complete dataset
+        if (required_partitions["train"]):
+            ds_train = ds_train_full
+            
+        if (required_partitions["trainSG"]):
+            ds_trainSG = ds_trainSG_full
+            
+        if (required_partitions["test"]):
+            ds_test = ds_test_full
+            
+    
     # Create the dataloader object for training, validation, and test data
-    trainloader = torch.utils.data.DataLoader(
-        ds_train,
-        num_workers=opt.num_workers,
-        batch_size=opt.train_batchsz,
-        collate_fn=custom_collate_fn,
-        shuffle=opt.train_shuffle,
-    )
-
-    if validation_present:    
-        valloader = torch.utils.data.DataLoader(
-            ds_val,
-            num_workers=opt.num_workers,
-            batch_size=opt.test_batchsz,
+    if (required_partitions["train"]):
+        trainloader = torch.utils.data.DataLoader(
+            ds_train,
+            num_workers=args.num_workers,
+            batch_size=args.train_batchsz,
             collate_fn=custom_collate_fn,
-            shuffle=opt.test_shuffle,
-            sampler = torch.utils.data.SequentialSampler(ds_val)
+            shuffle=args.train_shuffle,
         )
 
-    
-    testloader = torch.utils.data.DataLoader(
-        ds_test,
-        num_workers=opt.num_workers,
-        batch_size=opt.test_batchsz,
-        collate_fn=custom_collate_fn,
-        shuffle=opt.test_shuffle,
-        sampler = torch.utils.data.SequentialSampler(ds_test)
-    )
+    if (required_partitions["trainSG"]):    
+        trainSGloader = torch.utils.data.DataLoader(
+            ds_trainSG,
+            num_workers=args.num_workers,
+            batch_size=args.train_batchsz,
+            collate_fn=custom_collate_fn,
+            shuffle=args.test_shuffle,
+            sampler = torch.utils.data.SequentialSampler(ds_trainSG)
+        )
 
-    if not validation_present:
-        valloader = None
+    if (required_partitions["test"]):
+        testloader = torch.utils.data.DataLoader(
+            ds_test,
+            num_workers=args.num_workers,
+            batch_size=args.test_batchsz,
+            collate_fn=custom_collate_fn,
+            shuffle=args.test_shuffle,
+            sampler = torch.utils.data.SequentialSampler(ds_test)
+        )
 
-    return trainloader, valloader, testloader
+    return trainloader, trainSGloader, testloader
 
 # Returns the dataloader object that can be used to get batches of data
 def get_dataloader_only_testloader(opt, partition, labels, custom_collate_fn, validation_present, normalize_flag = True, file_type = None, N=None):

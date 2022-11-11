@@ -123,12 +123,7 @@ class dataloader_generator:
         # Intitialize the custom collator
         custom_collate_fn = custom_collator(args=args,
                                             file_type=file_type)
-
-        # Determine the value of validation_present flag based on whether 'val' is present in partition dict
-        validation_present = False
-        if 'val' in partition_dict.keys():
-            validation_present = True
-        
+ 
         # Normalize flag set to True for file_type = 'dvfs' and False for file_type = 'simpleperf'
         if file_type=='dvfs':
             normalize_flag = True
@@ -138,10 +133,15 @@ class dataloader_generator:
             raise ValueError("Incorrect file_type passed to wrapper for dataloader")
 
         # Get the dataloader object : # get_dataloader() returns an object that is returned by torch.utils.data.DataLoader
-        trainloader, validloader, testloader = get_dataloader(opt, partition = partition_dict, labels = labels, custom_collate_fn =custom_collate_fn,
-                                                            validation_present=validation_present, normalize_flag=normalize_flag, file_type= file_type, N = None)
+        trainloader, validloader, testloader = get_dataloader(args, 
+                                                            partition = partition_dict, 
+                                                            labels = labels, 
+                                                            custom_collate_fn =custom_collate_fn,
+                                                            required_partitions=required_partitions, 
+                                                            normalize_flag=normalize_flag, 
+                                                            file_type= file_type, 
+                                                            N = None)
 
-        # NOTE: If validation_present is False, then validloader is None
         return trainloader, validloader, testloader
     
     @staticmethod

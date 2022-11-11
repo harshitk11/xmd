@@ -18,6 +18,20 @@ seed: 10                                                                        
 device: "cuda:1"
 ################################################################################################################################
 
+########################################## Parameters for configuring the dataloader ###########################################
+num_workers: 10                                       # Number of workers for the dataloader
+train_batchsz: 20                                     # Batch size for training
+test_batchsz: 5                                       # Batch size for testing
+
+# Parameters for selecting subset of samples from the dataset [used during testing]
+num_train: 50                                         # Number of training samples to consider
+num_test:  5                                          # Number of testing samples to consider
+
+# Flags for shuffling the train, and test dataset
+train_shuffle: True                                   # Flag for shuffling the training data
+test_shuffle: False                                   # Flag for shuffling the testing data
+################################################################################################################################
+
 ################################## Parameters for feature engineering (passed to collate_fn) ###################################
 collected_duration: 90                                # Duration for which the telemetry logs is collected
 # Parameters for feature reduction (for GLOBL file_type)
@@ -34,18 +48,4 @@ resample: True                                        # Flag to determine whethe
 
 # Parameters for feature engineering of HPC
 histogram_bins: 32                                    # Number of bins into which the HPC time series telemetry is divided
-################################################################################################################################
-
-########################################## Parameters for configuring the dataloader ###########################################
-num_workers: 10                                       # Number of workers for the dataloader
-train_batchsz: 20                                     # Batch size for training
-test_batchsz: 5                                       # Batch size for testing
-
-# Parameters for selecting subset of samples from the dataset [used during testing]
-num_train: 50                                         # Number of training samples to consider
-num_test:  5                                          # Number of testing samples to consider
-
-# Flags for shuffling the train, and test dataset
-train_shuffle: True                                   # Flag for shuffling the training data
-test_shuffle: False                                   # Flag for shuffling the testing data
 ################################################################################################################################
