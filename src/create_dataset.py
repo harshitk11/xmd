@@ -194,7 +194,7 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         else:
             raise ValueError('Incorrect file type provided to the dataloader')
         X_std = X
-        
+
         # Normalize
         if self.normalize:
             # X : Nchannel x num_data_points
@@ -209,16 +209,6 @@ class arm_telemetry_data(torch.utils.data.Dataset):
             
             # Normalize
             X_std = (X - torch.unsqueeze(mean_ch,1))/torch.unsqueeze(std_ch,1)
-            
-            ## Testing the normalization module
-            # print(mean_ch.shape,std_ch.shape, floor_std_ch.shape)
-            # print(X.shape, X_std.shape)
-            # print(torch.max(X),torch.min(X))
-            # print(torch.max(X_std),torch.min(X_std))
-            # print(torch.std(X,1))
-            # print(torch.mean(X,1))
-            # print(torch.std(X_std,1))
-            # print(torch.mean(X_std,1))
             
         # Return the dvfs/hpc tensor (X_std), the corresponding label (y), and the corresponding file path that contains the name (id)
         return X_std,y,id
@@ -329,7 +319,7 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         
 
 # Returns the dataloader object that can be used to get batches of data
-def get_dataloader(args, partition, labels, custom_collate_fn, required_partitions, normalize_flag = True, file_type = None, N=None):
+def get_dataloader(args, partition, labels, custom_collate_fn, required_partitions, normalize_flag, file_type, N=None):
     '''
     Returns the dataloader objects for the different partitions.
 
@@ -436,60 +426,6 @@ def get_dataloader(args, partition, labels, custom_collate_fn, required_partitio
         )
 
     return trainloader, trainSGloader, testloader
-
-# Returns the dataloader object that can be used to get batches of data
-def get_dataloader_only_testloader(opt, partition, labels, custom_collate_fn, validation_present, normalize_flag = True, file_type = None, N=None):
-    '''
-    Returns only the dataloader for the testsamples.
-
-    Input: -partition = {'train' : [file_path1, file_path2, ..],
-                            'test' : [file_path1, file_path2, ..],
-                            'val' : [file_path1, file_path2]}
-                            
-           -labels : {file_path1 : 0, file_path2: 1, ...}  (Benigns have label 0 and Malware have label 1)
-           
-           -custom_collate_fn : Custom collate function object (Resamples and creates a batch of spectrogram B,T_chunk,Nch,H,W)
-
-           -N  : [num_training_samples, num_validation_samples, num_testing_samples]
-                  If N is specified, then we are selecting a subset of files from the dataset 
-
-           -normalize_flag : Will normalize the data if set to True. [Should be set to True for 'dvfs' and False for 'simpleperf'] 
-
-           -file_type : 'dvfs' or 'simpleperf' -> Different parsers used for each file_type
-
-    Output: Dataloader object for training, validation, and test data.
-    '''
-    
-    ds_test_full = arm_telemetry_data(partition, labels, split='test', file_type= file_type, normalize=normalize_flag)
-
-    # Check if you are using a subset of the complete dataset
-    if N is not None:
-        # You are using a subset of the complete dataset
-        print(f'[Info] ############### Using Subset : Num_train = {N[0]}, Num_val = {N[1]}, Num_test = {N[2]} ##################')
-        if len(N) != 3:
-            raise NotImplementedError('Size of Array should be 3')
-
-        if N[2] > ds_test_full.__len__():
-            raise NotImplementedError('More samples than present in DS')
-
-        indices = torch.arange(N[2])
-        ds_test = data_utils.Subset(ds_test_full, indices)
-
-    else: # Using the complete dataset
-        ds_test = ds_test_full
-
-    
-    testloader = torch.utils.data.DataLoader(
-        ds_test,
-        num_workers=opt.num_workers,
-        batch_size=opt.test_batchsz,
-        collate_fn=custom_collate_fn,
-        shuffle=opt.test_shuffle,
-        sampler = torch.utils.data.SequentialSampler(ds_test)
-    )
-
-    # Returning in a specific format due to dependencies
-    return None, None, testloader
 
 
 class custom_collator(object):
