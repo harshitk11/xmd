@@ -7,9 +7,6 @@ conda-env
 # Ignore the raw-data logs
 data/
 
-# Ignore the config logs
-config/
-
 # Ignore the run logs
 runs/
 
