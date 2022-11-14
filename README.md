@@ -3,6 +3,8 @@
 For this study, we developed an automated bare-metal sandbox for large-scale data-collection of hardware telemetry logs. The framework supports Android-OS Client, and has been designed specifically for a Google Pixel-3 device. The Host PC where the main [orchestrator](/baremetal_data_collection_framework/orchestrator.py) runs is a Linux-OS based PC. To prevent local-storage overhead, the sandbox is closely integrated with cloud (Dropbox). After every completion of data-collection for every application (totalling 8 iterations of runs with a duration of 90 seconds per iteration), the logs are pushed to Dropbox saving local storage space. Please see [readme](/baremetal_data_collection_framework/README.md) of the bare-metal data collection framework for more info.
 
 ## Usage
+To create the conda environment use the requirements.yml file (`conda env create -f requirements.yml -p conda-env`). Make sure [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) is installed on your system.
+
 Steps to generate the dataset:
 1. Create json with info about the different runs: The first step is to parse the logcat files and create json file which has the apk folder location and the different attributes of the logcat files based on which filtering will be performed.
     - To do this we run `python dropbox_module.py`

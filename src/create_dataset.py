@@ -66,207 +66,6 @@ def download(dbx, path, download_path):
             return None
 
 
-# def create_all_datasets_for_unknown_dataset(base_location):
-#     """
-#     Function to create splits: Train, Val, Test for all the tasks:
-#                                 - Individual DVFS
-#                                 - Fused DVFS
-#                                 - Individual HPC
-#                                 - Fused HPC
-#                                 - HPC_DVFS fused (DVFS part)
-#                                 - HPC_DVFS fused (HPC part)
-
-#     Input : 
-#         - base_location : Location of the base folder. See the directory structure in create_matched_lists()
-#     Output :
-#         - Partition and partition labels for DVFS individual, DVFS fusion, HPC individual, HPC fusion, HPC partition of DVFS-HPC fusion, DVFS partition of DVFS-HPC fusion
-#         -  [(DVFS_partition_for_HPC_DVFS_fusion, DVFS_partition_labels_for_HPC_DVFS_fusion),
-#             (HPC_partition_for_HPC_DVFS_fusion, HPC_partition_labels_for_HPC_DVFS_fusion),
-#             (HPC_partition_for_HPC_individual,HPC_partition_labels_for_HPC_individual),
-#             (HPC_partition_for_HPC_fusion,HPC_partition_labels_for_HPC_fusion),
-#             (DVFS_partition_for_DVFS_individual,DVFS_partition_labels_for_DVFS_individual),
-#             (DVFS_partition_for_DVFS_fusion,DVFS_partition_labels_for_DVFS_fusion)]
-
-#     """
-#     ####### To keep track of which files have not been selected for testing and validation [For Individual/Fused DVFS and Individual/Fused HPC] #######
-#     dvfs_benign_loc = os.path.join(base_location, "benign","dvfs")
-#     dvfs_malware_loc = os.path.join(base_location, "malware","dvfs")
-#     simpleperf_benign_rn_loc = [os.path.join(base_location, "benign","simpleperf",rn) for rn in ['rn1','rn2','rn3','rn4']]
-#     simpleperf_malware_rn_loc = [os.path.join(base_location, "malware","simpleperf",rn) for rn in ['rn1','rn2','rn3','rn4']]
-
-#     # Generate file_lists from these locations
-#     dvfs_benign_file_list = [join(dvfs_benign_loc,f) for f in listdir(dvfs_benign_loc) if isfile(join(dvfs_benign_loc,f))]
-#     dvfs_malware_file_list = [join(dvfs_malware_loc,f) for f in listdir(dvfs_malware_loc) if isfile(join(dvfs_malware_loc,f))]
-#     simpleperf_benign_file_list = [[join(_path,f) for f in listdir(_path) if isfile(join(_path,f))] for _path in simpleperf_benign_rn_loc]
-#     simpleperf_malware_file_list = [[join(_path,f) for f in listdir(_path) if isfile(join(_path,f))] for _path in simpleperf_malware_rn_loc]
-
-#     # Create a dict from these lists with key = file_path | value = Indicator (0 or 1) to identify whether this file has been selected for some spit or not
-#     dvfs_benign_file_dict = {path: 0 for path in dvfs_benign_file_list}
-#     dvfs_malware_file_dict = {path: 0 for path in dvfs_malware_file_list}
-#     simpleperf_benign_file_dict = [{path: 0 for path in simpleperf_rn} for simpleperf_rn in simpleperf_benign_file_list]
-#     simpleperf_malware_file_dict = [{path: 0 for path in simpleperf_rn} for simpleperf_rn in simpleperf_malware_file_list]
-#     ###################################################################################################################################################
-
-#     #########################******************************** Creating the splits for HPC-DVFS fusion ******************************##############################
-#     # Get the list of matched files
-#     #  - matched_lists_benign : [(matched_hpc_rn1_files, matched_dvfs_rn1_files), (...rn2...), (...rn3...), (...rn4...)]
-#     #  - matched_lists_malware : [(matched_hpc_rn1_files, matched_dvfs_rn1_files), (...rn2...), (...rn3...), (...rn4...)]
-#     matched_list_benign, matched_list_malware = create_matched_lists(base_location)
-
-#     # DVFS dataset partitions for HPC fusion
-#     # DVFS_partition_for_HPC_fusion : [dvfs_partition_for_fusion_with_rn1, dvfs_partition_for_fusion_with_rn2, ...rn3, ...rn4] 
-#     DVFS_partition_for_HPC_DVFS_fusion = []
-#     DVFS_partition_labels_for_HPC_DVFS_fusion = []
-    
-#     # HPC_partition_for_HPC_fusion : [hpc_partition_for_fusion_with_rn1, hpc_partition_for_fusion_with_rn2, ...rn3, ...rn4]
-#     HPC_partition_for_HPC_DVFS_fusion = []
-#     HPC_partition_labels_for_HPC_DVFS_fusion = []
-
-#     for indx,(rn_hpc_dvfs_benign,rn_hpc_dvfs_malware) in enumerate(zip(matched_list_benign, matched_list_malware)):
-#         ############################################ Splits for HPC DVFS fusion ############################################
-#         ######---------------------------------------------------------------- DVFS --------------------------------------------------------------######
-#         # Create splits for benign and malware [dvfs]
-#         benign_label, malware_label = create_labels_from_filepaths(benign_filepaths= rn_hpc_dvfs_benign[1], malware_filepaths= rn_hpc_dvfs_malware[1])
-#         # Create the partition dict using the matched labels [100% of samples are in test partition]
-#         partition = create_splits(benign_label= benign_label,malware_label= malware_label, partition_dist=[0,0,1])
-#         # print(f" - DVFS_partition_HPC_DVFS_fusion rn{indx+1} : {len(partition['train']),len(partition['val']),len(partition['test'])}")
-        
-#         DVFS_partition_for_HPC_DVFS_fusion.append(partition)
-
-#          # You can use all the files (not just the matched files) for creating labels.
-#         all_benign_label, all_malware_label = create_labels_from_filepaths(benign_filepaths= dvfs_benign_file_list, malware_filepaths= dvfs_malware_file_list)
-#         all_labels = {**all_benign_label,**all_malware_label}
-#         DVFS_partition_labels_for_HPC_DVFS_fusion.append(all_labels) # One labels dict for each rn
-        
-       
-#         ########---------------------------------------------------------------- HPC --------------------------------------------------------------######
-#         # Create splits for benign and malware [hpc]
-#         benign_label, malware_label = create_labels_from_filepaths(benign_filepaths= rn_hpc_dvfs_benign[0], malware_filepaths= rn_hpc_dvfs_malware[0])
-        
-#         partition = create_splits(benign_label= benign_label,malware_label= malware_label, partition_dist=[0,0,1])
-#         # print(f" - HPC_partition_HPC_DVFS_fusion rn{indx+1} : {len(partition['train']),len(partition['val']),len(partition['test'])}")
-
-#         HPC_partition_for_HPC_DVFS_fusion.append(partition)
-
-#         # You can use all the files for a given rn (not just the matched files) for creating labels.
-#         all_benign_label, all_malware_label = create_labels_from_filepaths(benign_filepaths= simpleperf_benign_file_list[indx], malware_filepaths= simpleperf_malware_file_list[indx])
-#         all_labels = {**all_benign_label,**all_malware_label}
-#         HPC_partition_labels_for_HPC_DVFS_fusion.append(all_labels)
-
-        
-#     # print("********** Stats for HPC partitions HPC-DVFS fusion ********** ")
-#     # for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_DVFS_fusion):
-#     #     print(f" - Stats for rn : {rn_indx+1}")
-#     #     for key,value in rn_partition_dict.items():
-#     #         print(f"  - {key,len(value)}")
-
-    
-#     # print("********** Stats for HPC partitions HPC-DVFS fusion ********** ")
-#     # for rn_indx, rn_partition_dict in enumerate(DVFS_partition_for_HPC_DVFS_fusion):
-#     #     print(f" - Stats for rn : {rn_indx+1}")
-#     #     for key,value in rn_partition_dict.items():
-#     #         print(f"  - {key,len(value)}")
-
-#     # ##### Testing for one to one correspondence between the DVFS partition and HPC partition #####
-#     # rn_minus_1 = 3 # For selecting the rn_val
-#     # for i,j in zip(DVFS_partition_for_HPC_DVFS_fusion[rn_minus_1]['test'], HPC_partition_for_HPC_DVFS_fusion[rn_minus_1]['test']):
-#     #     print(f"- {i} ====== {j} ====== {DVFS_partition_labels_for_HPC_DVFS_fusion[rn_minus_1][i]} ======= {HPC_partition_labels_for_HPC_DVFS_fusion[rn_minus_1][j]}")
-#     # sys.exit()
-#     #########################***************************************************************************************************##########################
-    
-#     #########################******************************** Creating the splits for Individual HPC and HPC Fusion ******************************##############################
-#     HPC_partition_for_HPC_individual = []
-#     HPC_partition_for_HPC_fusion = []
-#     # For each rn
-#     for rn_val in range(4):
-#         # Get the file list for malware and benign
-#         file_list_b = simpleperf_benign_file_list[rn_val]
-#         file_list_m = simpleperf_malware_file_list[rn_val]
-
-#         # Create labels
-#         benign_label, malware_label = create_labels_from_filepaths(benign_filepaths= file_list_b, malware_filepaths= file_list_m)
-
-#         # Create partition dict from the labels [100% of samples in the test dataset]
-#         partition = create_splits(benign_label= benign_label,malware_label= malware_label, partition_dist=[0,0,1])
-
-#         # Append it to HPC individual and HPC fusion
-#         HPC_partition_for_HPC_individual.append(partition)
-#         HPC_partition_for_HPC_fusion.append(partition)
-
-#         # print(f" - HPC_individual rn{indx+1} : {len(partition['train']),len(partition['val']),len(partition['test'])}")
-
-#     # Use the old labels dict
-#     HPC_partition_labels_for_HPC_individual = HPC_partition_labels_for_HPC_DVFS_fusion
-#     HPC_partition_labels_for_HPC_fusion = HPC_partition_labels_for_HPC_DVFS_fusion
-    
-
-#     # print("********** Stats for HPC partitions individual ********** ")
-#     # for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_individual):
-#     #     print(f" - Stats for rn : {rn_indx+1}")
-#     #     print(f" - Length of label dict : {len(HPC_partition_labels_for_HPC_individual[rn_indx])}")
-    
-#     #     for key,value in rn_partition_dict.items():
-#     #         print(f"  - {key,len(value)}")
-
-    
-#     # print("********** Stats for HPC partitions fusion ********** ")
-#     # for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_fusion):
-#     #     print(f" - Stats for rn : {rn_indx+1}")
-#     #     print(f" - Length of label dict : {len(HPC_partition_labels_for_HPC_fusion[rn_indx])}")
-
-#     #     for key,value in rn_partition_dict.items():
-#     #         print(f"  - {key,len(value)}")
-#     # sys.exit()
-#     #########################******************************** Creating the splits for Individual DVFS and DVFS Fusion ******************************##############################
-#     DVFS_partition_for_DVFS_individual = None
-#     DVFS_partition_for_DVFS_fusion = None
-    
-#     # Get the file list for malware and benign
-#     file_list_b = dvfs_benign_file_list
-#     file_list_m = dvfs_malware_file_list
-
-#     # Create labels
-#     benign_label, malware_label = create_labels_from_filepaths(benign_filepaths= file_list_b, malware_filepaths= file_list_m)
-
-#     # Create partition dict from the labels [100% of samples in the test dataset]
-#     partition = create_splits(benign_label= benign_label,malware_label= malware_label, partition_dist=[0,0,1])
-
-#     # Add the partition to fusion and individual
-#     DVFS_partition_for_DVFS_fusion = partition
-#     DVFS_partition_for_DVFS_individual = partition
-
-#     # Generate the labels dict
-#     all_labels = {**benign_label,**malware_label}
-        
-#     # print(f" - DVFS individual and fusion : {len(partition['train']),len(partition['val']),len(partition['test'])}")
-
-#     # Use the old labels dict
-#     DVFS_partition_labels_for_DVFS_individual = all_labels
-#     DVFS_partition_labels_for_DVFS_fusion = all_labels
-    
-
-#     # # Testing the partition for individual and fused dvfs
-#     # # print(DVFS_partition_for_DVFS_individual['train'])
-#     # print(" ********** Stats for DVFS individual ********** ")
-#     # for key,value in DVFS_partition_for_DVFS_individual.items():
-#     #     print(f"  - {key, len(value)}")
-    
-#     # print(" ********** Stats for DVFS fusion **********  ")
-#     # for key,value in DVFS_partition_for_DVFS_fusion.items():
-#     #     print(f"  - {key, len(value)}")
-    
-#     # print(f" - Length of label dict : {len(all_labels)}")
-#     # sys.exit()
-#     #########################**************************************************************************************************************************##########################
-
-
-#     return [(DVFS_partition_for_HPC_DVFS_fusion, DVFS_partition_labels_for_HPC_DVFS_fusion),
-#             (HPC_partition_for_HPC_DVFS_fusion, HPC_partition_labels_for_HPC_DVFS_fusion),
-#             (HPC_partition_for_HPC_individual,HPC_partition_labels_for_HPC_individual),
-#             (HPC_partition_for_HPC_fusion,HPC_partition_labels_for_HPC_fusion),
-#             (DVFS_partition_for_DVFS_individual,DVFS_partition_labels_for_DVFS_individual),
-#             (DVFS_partition_for_DVFS_fusion,DVFS_partition_labels_for_DVFS_fusion)]
-
 
 def get_common_apps(path_list):
     """
@@ -341,34 +140,33 @@ def get_common_apps(path_list):
     return common_app_hashes
 
 
-''' This is the Dataset object.
-A Dataset object loads the training or test data into memory.
-Your custom Dataset class MUST inherit torch's Dataset
-Your custom Dataset class should have 3 methods implemented (you can add more if you want but these 3 are essential):
-__init__(self) : Performs data loading
-__getitem__(self, index) :  Will allow for indexing into the dataset eg dataset[0]
-__len__(self) : len(dataset)
-'''
-# Custom dataset class for the dataloader
 class arm_telemetry_data(torch.utils.data.Dataset):
+    ''' 
+    This is the Dataset object.
+    A Dataset object loads the training or test data into memory.
+    Your custom Dataset class MUST inherit torch's Dataset
+    Your custom Dataset class should have 3 methods implemented (you can add more if you want but these 3 are essential):
+    __init__(self) : Performs data loading
+    __getitem__(self, index) :  Will allow for indexing into the dataset eg dataset[0]
+    __len__(self) : len(dataset)
+    '''
 
-    def __init__(self, partition, labels, split, file_type, normalize=True):
+    def __init__(self, partition, labels, split, file_type, normalize):
         '''
             -labels = {file_path1 : 0, file_path2: 0, ...}
 
             -partition = {'train' : [file_path1, file_path2, ..],
-                                'test' : [file_path1, file_path2, ..],
+                                'trainSG' : [file_path1, file_path2, ..],
                                 'val' : [file_path1, file_path2]}
 
-            -split = 'train', 'test', or 'val'
+            -split = 'train', 'trainSG', or 'val'
             -file_type = 'dvfs' or 'simpleperf' [Different parsers for different file types]                    
         '''
-        if(split not in ['train','test','val']):
-            raise NotImplementedError('Can only accept Train, Val, Test')
+        if(split not in ['train','trainSG','test']):
+            raise NotImplementedError('Can only accept Train, TrainSG, Test')
 
         # Store the list of paths (ids) in the split
         self.path_ids = partition[split] 
-        # print(f"- List of first 10 path ids : {self.path_ids[:10]}")
         
         # Store the list of labels
         self.labels = labels
@@ -393,11 +191,10 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         elif self.file_type == 'simpleperf':
             # Read and parse the simpleperf file
             X = self.read_simpleperf_file(id)
-            
         else:
             raise ValueError('Incorrect file type provided to the dataloader')
-        
         X_std = X
+
         # Normalize
         if self.normalize:
             # X : Nchannel x num_data_points
@@ -412,16 +209,6 @@ class arm_telemetry_data(torch.utils.data.Dataset):
             
             # Normalize
             X_std = (X - torch.unsqueeze(mean_ch,1))/torch.unsqueeze(std_ch,1)
-            
-            ## Testing the normalization module
-            # print(mean_ch.shape,std_ch.shape, floor_std_ch.shape)
-            # print(X.shape, X_std.shape)
-            # print(torch.max(X),torch.min(X))
-            # print(torch.max(X_std),torch.min(X_std))
-            # print(torch.std(X,1))
-            # print(torch.mean(X,1))
-            # print(torch.std(X_std,1))
-            # print(torch.mean(X_std,1))
             
         # Return the dvfs/hpc tensor (X_std), the corresponding label (y), and the corresponding file path that contains the name (id)
         return X_std,y,id
@@ -532,188 +319,142 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         
 
 # Returns the dataloader object that can be used to get batches of data
-def get_dataloader(opt, partition, labels, custom_collate_fn, validation_present, normalize_flag = True, file_type = None, N=None):
+def get_dataloader(args, partition, labels, custom_collate_fn, required_partitions, normalize_flag, file_type, N=None):
     '''
-    Input: -partition = {'train' : [file_path1, file_path2, ..],
+    Returns the dataloader objects for the different partitions.
+
+    params: 
+        -partition = {'train' : [file_path1, file_path2, ..],
                             'test' : [file_path1, file_path2, ..],
                             'val' : [file_path1, file_path2]}
                             
-           -labels : {file_path1 : 0, file_path2: 1, ...}  (Benigns have label 0 and Malware have label 1)
-           
-           -custom_collate_fn : Custom collate function object (Resamples and creates a batch of spectrogram B,T_chunk,Nch,H,W)
+        -labels : {file_path1 : 0, file_path2: 1, ...}  (Benigns have label 0 and Malware have label 1)
+        
+        -custom_collate_fn : Custom collate function object (Resamples and creates a batch of spectrogram B,T_chunk,Nch,H,W)
 
-           -validation_present : True if 'val' split is present in the parition dict. False otherwise.           
-           
-           -N  : [num_training_samples, num_validation_samples, num_testing_samples]
-                  If N is specified, then we are selecting a subset of files from the dataset 
+        -required_partitions : required_partitions = {"train":T or F, "trainSG":T or F, "test":T or F}           
+        
+        -N  : [num_training_samples, num_trainSG_samples, num_testing_samples]
+                If N is specified, then we are selecting a subset of files from the dataset 
 
-           -normalize_flag : Will normalize the data if set to True. [Should be set to True for 'dvfs' and False for 'simpleperf'] 
+        -normalize_flag : Will normalize the data if set to True. [Should be set to True for 'dvfs' and False for 'simpleperf'] 
 
-           -file_type : 'dvfs' or 'simpleperf' -> Different parsers used for each file_type
+        -file_type : 'dvfs' or 'simpleperf' -> Different parsers used for each file_type
 
-    Output: Dataloader object for training, validation, and test data.
+    Output: 
+        - trainloader, trainSGloader, testloader : Dataloader object for train, trainSG, and test data.
     '''
-    
-    # Initialize the custom dataset class for training, validation, and test data
-    ds_train_full = arm_telemetry_data(partition, labels, split='train', file_type= file_type, normalize=normalize_flag)
-    
-    if validation_present:
-        ds_val_full = arm_telemetry_data(partition, labels, split='val', file_type= file_type, normalize=normalize_flag)
-    
-    ds_test_full = arm_telemetry_data(partition, labels, split='test', file_type= file_type, normalize=normalize_flag)
+    trainloader, trainSGloader, testloader = None, None, None
 
-    # Check if you are using a subset of the complete dataset
+    # Initialize the custom dataset class for training, validation, and test data
+    if required_partitions["train"]:
+        ds_train_full = arm_telemetry_data(partition, labels, split='train', file_type= file_type, normalize=normalize_flag)
+    
+    if required_partitions["trainSG"]:
+        ds_trainSG_full = arm_telemetry_data(partition, labels, split='val', file_type= file_type, normalize=normalize_flag)
+    
+    if required_partitions["test"]:
+        ds_test_full = arm_telemetry_data(partition, labels, split='test', file_type= file_type, normalize=normalize_flag)
+
     if N is not None:
         # You are using a subset of the complete dataset
         print(f'[Info] ############### Using Subset : Num_train = {N[0]}, Num_val = {N[1]}, Num_test = {N[2]} ##################')
         if len(N) != 3:
             raise NotImplementedError('Size of Array should be 3')
 
-        if N[0] > ds_train_full.__len__():
-            raise NotImplementedError(f"More samples than present in DS. Demanded : {N[0]} | Available: {ds_train_full.__len__()}")
+        if (required_partitions["train"]):
+            if (N[0] > ds_train_full.__len__()):
+                raise NotImplementedError(f"More samples than present in DS. Demanded : {N[0]} | Available: {ds_train_full.__len__()}")
+            else:
+                indices = torch.arange(N[0])
+                ds_train = data_utils.Subset(ds_train_full, indices)
 
-        if validation_present:
-            if N[1] > ds_val_full.__len__():
-                raise NotImplementedError(f'More samples than present in DS. Demanded : {N[1]} | Available: {ds_val_full.__len__()}')
+        if (required_partitions["trainSG"]):
+            if (N[1] > ds_trainSG_full.__len__()):
+                raise NotImplementedError(f'More samples than present in DS. Demanded : {N[1]} | Available: {ds_trainSG_full.__len__()}')
+            else:
+                indices = torch.arange(N[1])
+                ds_trainSG = data_utils.Subset(ds_trainSG_full, indices)
 
-        if N[2] > ds_test_full.__len__():
-            raise NotImplementedError(f'More samples than present in DS. Demanded : {N[2]} | Available: {ds_test_full.__len__()}')
+        if (required_partitions["test"]):
+            if (N[2] > ds_test_full.__len__()):
+                raise NotImplementedError(f'More samples than present in DS. Demanded : {N[2]} | Available: {ds_test_full.__len__()}')
+            else:
+                indices = torch.arange(N[2])
+                ds_test = data_utils.Subset(ds_test_full, indices)
 
-        
-        indices = torch.arange(N[0])
-        ds_train = data_utils.Subset(ds_train_full, indices)
-
-        if validation_present:
-            indices = torch.arange(N[1])
-            ds_val = data_utils.Subset(ds_val_full, indices)
-
-        indices = torch.arange(N[2])
-        ds_test = data_utils.Subset(ds_test_full, indices)
-
-    else: # Using the complete dataset
-        ds_train = ds_train_full
-        
-        if validation_present:
-            ds_val = ds_val_full
-        
-        ds_test = ds_test_full
-
+    else: 
+        # Using the complete dataset
+        if (required_partitions["train"]):
+            ds_train = ds_train_full
+            
+        if (required_partitions["trainSG"]):
+            ds_trainSG = ds_trainSG_full
+            
+        if (required_partitions["test"]):
+            ds_test = ds_test_full
+            
+    
     # Create the dataloader object for training, validation, and test data
-    trainloader = torch.utils.data.DataLoader(
-        ds_train,
-        num_workers=opt.num_workers,
-        batch_size=opt.train_batchsz,
-        collate_fn=custom_collate_fn,
-        shuffle=opt.train_shuffle,
-    )
-
-    if validation_present:    
-        valloader = torch.utils.data.DataLoader(
-            ds_val,
-            num_workers=opt.num_workers,
-            batch_size=opt.test_batchsz,
+    if (required_partitions["train"]):
+        trainloader = torch.utils.data.DataLoader(
+            ds_train,
+            num_workers=args.num_workers,
+            batch_size=args.train_batchsz,
             collate_fn=custom_collate_fn,
-            shuffle=opt.test_shuffle,
-            sampler = torch.utils.data.SequentialSampler(ds_val)
+            shuffle=args.train_shuffle,
         )
 
-    
-    testloader = torch.utils.data.DataLoader(
-        ds_test,
-        num_workers=opt.num_workers,
-        batch_size=opt.test_batchsz,
-        collate_fn=custom_collate_fn,
-        shuffle=opt.test_shuffle,
-        sampler = torch.utils.data.SequentialSampler(ds_test)
-    )
+    if (required_partitions["trainSG"]):    
+        trainSGloader = torch.utils.data.DataLoader(
+            ds_trainSG,
+            num_workers=args.num_workers,
+            batch_size=args.train_batchsz,
+            collate_fn=custom_collate_fn,
+            shuffle=args.test_shuffle,
+            sampler = torch.utils.data.SequentialSampler(ds_trainSG)
+        )
 
-    if not validation_present:
-        valloader = None
+    if (required_partitions["test"]):
+        testloader = torch.utils.data.DataLoader(
+            ds_test,
+            num_workers=args.num_workers,
+            batch_size=args.test_batchsz,
+            collate_fn=custom_collate_fn,
+            shuffle=args.test_shuffle,
+            sampler = torch.utils.data.SequentialSampler(ds_test)
+        )
 
-    return trainloader, valloader, testloader
-
-# Returns the dataloader object that can be used to get batches of data
-def get_dataloader_only_testloader(opt, partition, labels, custom_collate_fn, validation_present, normalize_flag = True, file_type = None, N=None):
-    '''
-    Returns only the dataloader for the testsamples.
-
-    Input: -partition = {'train' : [file_path1, file_path2, ..],
-                            'test' : [file_path1, file_path2, ..],
-                            'val' : [file_path1, file_path2]}
-                            
-           -labels : {file_path1 : 0, file_path2: 1, ...}  (Benigns have label 0 and Malware have label 1)
-           
-           -custom_collate_fn : Custom collate function object (Resamples and creates a batch of spectrogram B,T_chunk,Nch,H,W)
-
-           -N  : [num_training_samples, num_validation_samples, num_testing_samples]
-                  If N is specified, then we are selecting a subset of files from the dataset 
-
-           -normalize_flag : Will normalize the data if set to True. [Should be set to True for 'dvfs' and False for 'simpleperf'] 
-
-           -file_type : 'dvfs' or 'simpleperf' -> Different parsers used for each file_type
-
-    Output: Dataloader object for training, validation, and test data.
-    '''
-    
-    ds_test_full = arm_telemetry_data(partition, labels, split='test', file_type= file_type, normalize=normalize_flag)
-
-    # Check if you are using a subset of the complete dataset
-    if N is not None:
-        # You are using a subset of the complete dataset
-        print(f'[Info] ############### Using Subset : Num_train = {N[0]}, Num_val = {N[1]}, Num_test = {N[2]} ##################')
-        if len(N) != 3:
-            raise NotImplementedError('Size of Array should be 3')
-
-        if N[2] > ds_test_full.__len__():
-            raise NotImplementedError('More samples than present in DS')
-
-        indices = torch.arange(N[2])
-        ds_test = data_utils.Subset(ds_test_full, indices)
-
-    else: # Using the complete dataset
-        ds_test = ds_test_full
-
-    
-    testloader = torch.utils.data.DataLoader(
-        ds_test,
-        num_workers=opt.num_workers,
-        batch_size=opt.test_batchsz,
-        collate_fn=custom_collate_fn,
-        shuffle=opt.test_shuffle,
-        sampler = torch.utils.data.SequentialSampler(ds_test)
-    )
-
-    # Returning in a specific format due to dependencies
-    return None, None, testloader
+    return trainloader, trainSGloader, testloader
 
 
 class custom_collator(object):
-    def __init__(self, collection_duration=40, chunk_time = 1, truncated_duration = 30, 
-                custom_num_datapoints = 150000, resampling_type = 'custom',
-                reduced_frequency_size = 10, reduced_time_size = 5, reduced_feature_flag = False, n_fft = 1024, file_type = None, histogram_bins = 32, resample=True):
-
-        self.cd = collection_duration # Duration for which data is collected
-        self.chunk_time = chunk_time # Window size (in s) over which the spectrogram will be calculated
+    def __init__(self, args, file_type):
+        self.cd = args.collection_duration # Duration for which data is collected
         
-        # Parameters for truncating the dvfs time series
-        self.truncated_duration = truncated_duration # Consider the first truncated_duration seconds of the iteration
+        ###################### Feature engineering parameters of the GLOBL channels ######################
+        self.chunk_time = args.chunk_time # Window size (in s) over which the spectrogram will be calculated  
+        
+        # Parameters for truncating the dvfs time series. Consider the first truncated_duration seconds of the iteration
+        self.truncated_duration = args.truncated_duration 
         
         # Parameters for resampling DVFS
-        self.custom_num_datapoints = custom_num_datapoints # Number of data points in the resampled time series
-        self.resampling_type = resampling_type # Type of resampling. Can take one of the following values: ['max', 'min', 'custom']
-        self.resample = resample # Whether or not to resample. Default : True
+        self.custom_num_datapoints = args.custom_num_datapoints # Number of data points in the resampled time series
+        self.resampling_type = args.resampling_type # Type of resampling. Can take one of the following values: ['max', 'min', 'custom']
+        self.resample = args.resample # Whether or not to resample. Default : True
 
         # Parameters for feature reduction (for DVFS file_type)
-        self.reduced_frequency_size = reduced_frequency_size # dimension of frequency axis after dimensionality reduction
-        self.reduced_time_size = reduced_time_size # dimension of time axis after dimensionality reduction
-        self.reduced_feature_flag = reduced_feature_flag # If True, then we perform feature reduction. Defaule is False.
-        self.n_fft = n_fft # Order of fft for stft
+        self.reduced_frequency_size = args.reduced_frequency_size # dimension of frequency axis after dimensionality reduction
+        self.reduced_time_size = args.reduced_time_size # dimension of time axis after dimensionality reduction
+        self.reduced_feature_flag = args.feature_engineering_flag # If True, then we perform feature reduction. Defaule is False.
+        self.n_fft = args.n_fft # Order of fft for stft
 
         # For selecting file_type : "dvfs" or "simpleperf"
         self.file_type = file_type
 
+        ###################### Feature engineering parameters of the HPC channels ########################
         # Feature engineering parameters for simpleperf files
-        self.histogram_bins = histogram_bins
+        self.histogram_bins = args.histogram_bins
 
     def __call__(self, batch):
         '''
@@ -1335,7 +1076,7 @@ class dataset_split_generator:
     """
     Generates the dataset splits for all the classification tasks: DVFS individual, DVFS Fusion, HPC individual, and HPC-DVFS Fusion.
 
-    - Given a dataset, we have handle the split [num_train_%, num_trainSG_%, num_test_%] according to the following cases:
+    - Given a dataset, we have to handle the split [num_train_%, num_trainSG_%, num_test_%] according to the following cases:
  
         1. If the dataset is used for training the models (i.e. std-dataset), then we create splits for training the base-classifier (num_train_% = 70%)
             and for training the second-stage model (num_trainSG_% = 30%). In this case, there is no test split. 
@@ -1344,7 +1085,7 @@ class dataset_split_generator:
         2. If the dataset is used for testing the models (i.e., cd-year1-dataset etc.), then we use the entire dataset for testing the models (num_test_% = 100%) and there is no training split.
  
         3. For the bench-dataset, we are not performing MLP fusion so we don't need a split for training the second stage model (i.e. num_trainSG_% = 0%).
-            Since the objective of the bench-dataset is to establish the non-determinism in the GLOBL channels, 
+            Since the objective of the bench-dataset is to establish the non-determinism in the GLOBL channels, i.e., we only want to show that the performance of HPC is more than DVFS for benchmarks. 
             we don't care about temporal bias, so we can use test data from the same dataset.
             In this case, we have standard Train and Test split (num_train_% = 70%, num_test_% = 30%)
  
@@ -1368,7 +1109,8 @@ class dataset_split_generator:
     @staticmethod
     def create_file_dict(file_list, file_type):
         """
-        Creates a dict from the file list with key = file_hash and value = [((it0,rn0), index_in_file),((it1,rn0), index_in_file),..] i.e., list of tuples containing the rn and iter values associated with the hash 
+        Creates a dict from the file list with key = file_hash and value = [((it0,rn0), index_in_file),((it1,rn0), index_in_file),..] 
+        i.e., list of tuples containing the rn and iter values associated with the hash 
 
         Input : 
             - file_list : List of file paths
@@ -1566,6 +1308,8 @@ class dataset_split_generator:
         Output : -partition = {'train' : [file_path1, file_path2, ..],
                                 'trainSG' : [file_path1, file_path2, ..],
                                 'test' : [file_path1, file_path2]}
+
+                    NOTE: partition may be empty for certain splits, e.g., when num_trainSG_%=0 then 'trainSG' partition is an empty list.
         '''
         # Fix the seed value of random number generator for reproducibility
         random.seed(self.seed) 
@@ -1702,8 +1446,8 @@ class dataset_split_generator:
         if (self.dataset_type == "cd-dataset") or (self.dataset_type == "std-dataset"): 
             """ 
             - We only need HPC-DVFS fusion for the cd-dataset and the std-dataset, and NOT the bench-dataset.
-            - For the HPC-DVFS fusion, we are interested in the trainSG and test partition. We don't care about the train partition, 
-                since it won't be used for training the second stage model. 
+            - For the HPC-DVFS fusion, we are interested in the trainSG (used for training the second stage model) and 
+            test partition (used for testing the ensemble and MLP fusion schemes). We don't need the train partition. 
             """
             # Get the list of matched files
             #  - matched_lists_benign : [(matched_hpc_rn1_files, matched_dvfs_rn1_files), (...rn2...), (...rn3...), (...rn4...)]
@@ -1718,6 +1462,9 @@ class dataset_split_generator:
                 benign_label, malware_label = dataset_split_generator.create_labels_from_filepaths(benign_filepaths= rn_hpc_dvfs_benign[1], malware_filepaths= rn_hpc_dvfs_malware[1])
                 # Create the partition dict using the matched labels
                 partition = self.create_splits(benign_label= benign_label,malware_label= malware_label)
+                
+                # Using 'trainSG' partition for STD-dataset and 'test' partition for CD-dataset. No need of 'train' partition.
+                partition['train']=None
                 DVFS_partition_for_HPC_DVFS_fusion.append(partition)
                 
                 # Mark the files that are used in the trainSG [The unmarked files will be used in the training for Individual DVFS (for STD-Dataset)]
@@ -1732,6 +1479,9 @@ class dataset_split_generator:
                 benign_label, malware_label = dataset_split_generator.create_labels_from_filepaths(benign_filepaths= rn_hpc_dvfs_benign[0], malware_filepaths= rn_hpc_dvfs_malware[0])
                 # Create the partition dict using the matched labels
                 partition = self.create_splits(benign_label= benign_label,malware_label= malware_label)
+                
+                # Using 'trainSG' partition for STD-dataset and 'test' partition for CD-dataset. No need of 'train' partition.
+                partition['train']=None
                 HPC_partition_for_HPC_DVFS_fusion.append(partition)
 
                 # Mark the files that are used in the trainSG [The unmarked files will be used in the training for Individual HPC (for STD-Dataset)]
@@ -1740,6 +1490,8 @@ class dataset_split_generator:
                         simpleperf_benign_file_dict[indx][file_path] = 1
                     elif file_path in simpleperf_malware_file_dict[indx]:
                         simpleperf_malware_file_dict[indx][file_path] = 1
+
+                
         
         elif (self.dataset_type == "bench-dataset"):
             # If the dataset-type is bench-dataset, then populate the partition list with None
@@ -1791,6 +1543,7 @@ class dataset_split_generator:
 
                 # Create partition dict from the labels [100% of samples in the test dataset]
                 partition = self.create_splits(benign_label= benign_label,malware_label= malware_label)
+                partition["trainSG"] = None
 
                 # Append it to HPC individual
                 HPC_partition_for_HPC_individual.append(partition)
@@ -1880,6 +1633,7 @@ class dataset_split_generator:
             
             # Add it to the partition for both individual DVFS
             DVFS_partition_for_DVFS_individual = {'train':train, 'trainSG':[], 'test':[]}
+            DVFS_partition_for_DVFS_fusion = None
 
         ################################ Unit tests for testing the HPC individual partitions ################################        
         # # Testing the partition for individual and fused dvfs
