@@ -1,0 +1,4 @@
+train_batchsz: 1                                     
+test_batchsz: 1
+collected_duration: 40
+num_workers: 0  

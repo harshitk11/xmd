@@ -44,8 +44,8 @@ class dataloader_generator:
     """
     # Used to identify the partitions required for the different classification tasks for the different datasets : std-dataset, cd-dataset, bench-dataset
     partition_activation_flags = {
-                                    "std-dataset":{'DVFS_partition_for_HPC_DVFS_fusion':{"train":True, "trainSG":True, "test":False},
-                                                'HPC_partition_for_HPC_DVFS_fusion':{"train":True, "trainSG":True, "test":False},
+                                    "std-dataset":{'DVFS_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":True, "test":False},
+                                                'HPC_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":True, "test":False},
                                                 'HPC_individual':{"train":True, "trainSG":False, "test":False},
                                                 'DVFS_individual':{"train":True, "trainSG":False, "test":False},
                                                 'DVFS_fusion':{"train":False, "trainSG":False, "test":False}},
@@ -115,7 +115,7 @@ class dataloader_generator:
             - train, trainSG, and test dataloader objects depending on the dataset_type
         """
 
-        print(f'[Info] Fetching dataloader objects for dataset:{dataset_type} and for channel: {file_type} ...')
+        print(f'[Info] Fetching dataloader objects for dataset:{dataset_type}, classification toi: {clf_toi}, channel: {file_type}\n{"-"*140}')
     
         # Find the partitions that will be required for this dataset. required_partitions = {"train":T or F, "trainSG":T or F, "test":T or F}
         required_partitions = dataloader_generator.partition_activation_flags[dataset_type][clf_toi]
@@ -133,7 +133,7 @@ class dataloader_generator:
             raise ValueError("Incorrect file_type passed to wrapper for dataloader")
 
         # Get the dataloader object : # get_dataloader() returns an object that is returned by torch.utils.data.DataLoader
-        trainloader, validloader, testloader = get_dataloader(args, 
+        trainloader, trainSGloader, testloader = get_dataloader(args, 
                                                             partition = partition_dict, 
                                                             labels = labels, 
                                                             custom_collate_fn =custom_collate_fn,
@@ -142,7 +142,7 @@ class dataloader_generator:
                                                             file_type= file_type, 
                                                             N = None)
 
-        return trainloader, validloader, testloader
+        return {'trainloader': trainloader, 'trainSGloader': trainSGloader, 'testloader': testloader}
     
     @staticmethod
     def get_dataloader_for_all_classification_tasks(all_dataset_partitionDict_label, dataset_type, args):
@@ -197,15 +197,51 @@ class dataloader_generator:
                                                                 'rn3':{'partition':all_dataset_partitionDict_label[2][0][2],'label':all_dataset_partitionDict_label[2][1][2],'file_type':'simpleperf'},
                                                                 'rn4':{'partition':all_dataset_partitionDict_label[2][0][3],'label':all_dataset_partitionDict_label[2][1][3],'file_type':'simpleperf'}},
 
-                        'DVFS_individual' :                    {'partition':all_dataset_partitionDict_label[3][0],'label':all_dataset_partitionDict_label[3][1],'file_type':'dvfs'},
+                        'DVFS_individual' :                    {'all':{'partition':all_dataset_partitionDict_label[3][0],'label':all_dataset_partitionDict_label[3][1],'file_type':'dvfs'}},
 
-                        'DVFS_fusion' :                        {'partition':all_dataset_partitionDict_label[4][0],'label':all_dataset_partitionDict_label[4][1],'file_type':'dvfs'}
+                        'DVFS_fusion' :                        {'all':{'partition':all_dataset_partitionDict_label[4][0],'label':all_dataset_partitionDict_label[4][1],'file_type':'dvfs'}}
                         }
         
+        # Get the dataloader for all the classification toi
+        dataloaderAllClfToi = {}
+        for clf_toi, partition_bin_details in select_dataset.items():
+            dataloaderAllClfToi[clf_toi] = {}
+            for rnBin, partitionDetails in partition_bin_details.items(): 
+                dataloaderAllClfToi[clf_toi][rnBin] = dataloader_generator.prepare_dataloader(partition_dict = partitionDetails['partition'], 
+                                                                                            labels = partitionDetails['label'], 
+                                                                                            file_type = partitionDetails['file_type'], 
+                                                                                            dataset_type = dataset_type, 
+                                                                                            clf_toi = clf_toi, 
+                                                                                            args = args)
 
-        # for x,y in zip(select_dataset['DVFS_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test'], select_dataset['HPC_partition_for_HPC_DVFS_fusion']['rn1']['partition']['test']):
-        #     print(f"{x,y}\n")
-        # Partition flags for selecting the partitions that will be used for a specific dataset type
+        # ################################################################ Testing the supervised learning dataloader ################################################################
+        iter_loader = iter(dataloaderAllClfToi['DVFS_individual']['all']['testloader'])
+        batch_spec_tensor, labels, f_paths = next(iter_loader)
+        f_paths = "\n - ".join(f_paths)
+        print(f"- Shape of batch tensor (B,N_ch,reduced_feature_size) : {batch_spec_tensor.shape}")
+        print(f"- Batch labels : {labels}")
+        print(f"- File Paths : {f_paths}")
+        exit()
+
+        # iter_loader = iter(dataloaderAllClfToi['HPC_individual']['rn2']['testloader'])
+        # batch_spec_tensor, labels, f_paths = next(iter_loader)
+        # f_paths = "\n - ".join(f_paths)
+        # print(f"- Shape of batch tensor (B,N_ch,reduced_feature_size) : {batch_spec_tensor.shape}")
+        # print(f"- Batch labels : {labels}")
+        # print(f"- File Paths : {f_paths}")
+        # exit()
+
+        # # Testing the alignment of DVFS and HPC for HPC-DVFS fusion
+        # # HPC
+        # iter_testloader_hpc = iter(dataloaderAllClfToi['HPC_partition_for_HPC_DVFS_fusion']['rn1']['trainSGloader'])
+        # batch_spec_tensor_hpc, labels_hpc, f_paths_hpc = next(iter_testloader_hpc)
+        # # DVFS
+        # iter_testloader_dvfs = iter(dataloaderAllClfToi['DVFS_partition_for_HPC_DVFS_fusion']['rn1']['trainSGloader'])
+        # batch_spec_tensor_dvfs, labels_dvfs, f_paths_dvfs = next(iter_testloader_dvfs)
+        # for i,j in zip(f_paths_dvfs,f_paths_hpc):
+        #     print(f"-- {i,j}")
+        # exit()
+    
 
 def main_worker(args):
     """
@@ -221,6 +257,8 @@ def main_worker(args):
     
     # Get the dataset type and the partition dist for the dataset split generator
     dsGen_dataset_type, dsGem_partition_dist = dataloader_generator.get_dataset_type_and_partition_dist(dataset_type = args.dataset_type)
+    # dsGen_dataset_type, dsGem_partition_dist = dataloader_generator.get_dataset_type_and_partition_dist(dataset_type = 'std-dataset')
+
     # Get the dataset base location
     dataset_base_location = os.path.join(args.dataset_base_location, args.dataset_type)
 
@@ -231,7 +269,9 @@ def main_worker(args):
     all_datasets = dsGen.create_all_datasets(base_location=dataset_base_location)
 
     # Generate the dataloaders for all the classification tasks
-    dataloader_dict = dataloader_generator.get_dataloader_for_all_classification_tasks(all_dataset_partitionDict_label = all_datasets, args=args)
+    dataloader_dict = dataloader_generator.get_dataloader_for_all_classification_tasks(all_dataset_partitionDict_label = all_datasets, 
+                                                                                        dataset_type=dsGen_dataset_type, 
+                                                                                        args=args)
     
 def main():
     ############################################## Setting up the experimental parameters ##############################################
@@ -254,7 +294,7 @@ def main():
     ####################################################################################################################################
 
     # Duration of the time series that will be used
-    args.truncated_duration = 30
+    args.truncated_duration = 20
     # Start the analysis
     main_worker(args=args)
 

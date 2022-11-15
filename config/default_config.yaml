@@ -4,9 +4,7 @@ runtime_per_file: 15                                  # Runtime measured by the 
 num_logcat_lines_per_file: 50                         # Number of logcat events in the logcat file 
 freq_logcat_event_per_file: 2                         # Average frequency of the logcat events i.e. number of logcat events per second
 
-# Dataset type (Can take one of the following values: {'std-dataset', 'bench-dataset', 'cdyear1-dataset', 'cdyear2-dataset', 'cdyear3-dataset'})
-dataset_type: 'cd-dataset'
-
+dataset_type: 'cd-dataset'                            # Dataset type (Can take one of the following values: {'std-dataset', 'bench-dataset', 'cdyear1-dataset', 'cdyear2-dataset', 'cdyear3-dataset'})
 dataset_download_flag: False                          # Flag that decides whether or not to download the dataset from Dropbox
 ################################################################################################################################
 
@@ -47,5 +45,5 @@ resampling_type: "custom"                             # Type of resampling. Can 
 resample: True                                        # Flag to determine whether or not to resample
 
 # Parameters for feature engineering of HPC
-histogram_bins: 32                                    # Number of bins into which the HPC time series telemetry is divided
+histogram_bin_size: 32                                    # HPC time series is divided into histogram bins. This parameter dictates the number of datapoints in each bin.
 ################################################################################################################################

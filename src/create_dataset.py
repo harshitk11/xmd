@@ -274,8 +274,6 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         perf_tensor = torch.tensor(perf_list, dtype=torch.float32)
         # Transpose the tensor to shape : Num_channels x Num_data_points
         perf_tensor_transposed = torch.transpose(perf_tensor, 0, 1)
-        # Ignore the first channel (it is the time channel)
-        perf_tensor_transposed = perf_tensor_transposed[1:]
 
         return perf_tensor_transposed
                     
@@ -318,7 +316,269 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         return filtered_dvfs_tensor    
         
 
-# Returns the dataloader object that can be used to get batches of data
+class custom_collator(object):
+    def __init__(self, args, file_type):
+        self.cd = args.collected_duration # Duration for which data is collected
+        
+        ###################### Feature engineering parameters of the GLOBL channels ######################
+        self.chunk_time = args.chunk_time # Window size (in s) over which the spectrogram will be calculated  
+        
+        # Parameters for truncating the dvfs time series. Consider the first truncated_duration seconds of the iteration
+        self.truncated_duration = args.truncated_duration 
+        
+        # Parameters for resampling DVFS
+        self.custom_num_datapoints = args.custom_num_datapoints # Number of data points in the resampled time series
+        self.resampling_type = args.resampling_type # Type of resampling. Can take one of the following values: ['max', 'min', 'custom']
+        self.resample = args.resample # Whether or not to resample. Default : True
+
+        # Parameters for feature reduction (for DVFS file_type)
+        self.reduced_frequency_size = args.reduced_frequency_size # dimension of frequency axis after dimensionality reduction
+        self.reduced_time_size = args.reduced_time_size # dimension of time axis after dimensionality reduction
+        self.reduced_feature_flag = args.feature_engineering_flag # If True, then we perform feature reduction. Defaule is False.
+        self.n_fft = args.n_fft # Order of fft for stft
+
+        # For selecting file_type : "dvfs" or "simpleperf"
+        self.file_type = file_type
+
+        ###################### Feature engineering parameters of the HPC channels ########################
+        # Feature engineering parameters for simpleperf files
+        self.histogram_bin_size = args.histogram_bin_size
+
+    def __call__(self, batch):
+        '''
+        Takes a batch of files, outputs a tensor of of batch, the corresponding labels, and the corresponding file paths
+        - If reduced_feature_flag is False, then will return a list instead of a stacked tensor, for both dvfs and simpleperf
+        '''
+        if self.file_type == "dvfs":
+            # batch_dvfs : [iter1, iter2, ... , iterB]  (NOTE: iter1 - Nchannels x T1 i.e. Every iteration has a different length. Duration of data collection is the same. Sampling frequency is different for each iteration)
+            # batch_labels : [iter1_label, iter2_label, ...iterB_label]
+            # batch_paths : [iter1_path, iter2_path, ...iterB_path]
+            batch_dvfs, batch_labels, batch_paths = list(zip(*batch))
+
+            if self.resample:
+                # Resample so that each iteration in the batch has the same number of datapoints
+                resampled_batch_dvfs, target_fs = self.resample_dvfs(batch_dvfs)
+            else:
+                resampled_batch_dvfs = batch_dvfs 
+            ######################## Testing the resampling module #######################################
+            # # To plot the original and the resampled data (for verifying the resampling)
+            # print('********************* Testing the resampling module *********************')
+            # for i in range(15):
+            #     chn_idx = i
+            #     btch_idx = 0
+            #     fig, axs = plt.subplots(2)
+            #     axs[0].plot([i for i in range(len(batch_dvfs[btch_idx][chn_idx]))],batch_dvfs[btch_idx][chn_idx])
+            #     axs[1].plot([i for i in range(len(resampled_batch_dvfs[btch_idx][chn_idx]))],resampled_batch_dvfs[btch_idx][chn_idx])
+            #     plt.savefig('resampling_channel'+str(i)+'_.png', dpi=300)
+            #     plt.close()
+            # exit()
+            ################################################################################################
+
+
+            # Perform feature reduction on the batch of resampled dataset, so that number of features for every sample = 40
+            if self.reduced_feature_flag: #If reduced_feature_flag is set to True, then perform feature reduction
+                batch_tensor = self.perform_feature_reduction(resampled_batch_dvfs, target_fs)
+            
+            else: # Just pass the resampled dvfs data
+                batch_tensor = resampled_batch_dvfs
+            # print(batch_tensor.shape)
+        
+            ################################################################################################
+
+        elif self.file_type == "simpleperf":
+            # batch_hpc : [iter1, iter2, ... , iterB]  (NOTE: iter1 - Nchannels x T1 i.e. Every iteration has a different length. Duration of data collection is the same. Sampling frequency is different for each iteration)
+            # batch_labels : [iter1_label, iter2_label, ...iterB_label]
+            # batch_paths : [iter1_path, iter2_path, ...iterB_path]
+            batch_hpc, batch_labels, batch_paths = list(zip(*batch))
+
+            if self.reduced_feature_flag:
+                # Stores the dimension reduced hpc for each patch
+                reduced_batch_hpc = []
+
+                # Divide the individual variates of the tensor into intervals of length histogram_bin_size. And sum over the individual intervals to form feature size of 32 for each variate.
+                for hpc_iter_tensor in batch_hpc:
+                    # Take the truncated duration of the tensor
+                    hpc_iter_tensor = self.truncate_hpc_tensor(hpc_iter_tensor)
+                    
+                    ## hpc_intervals : [chunks of size - Nchannels x self.histogram_bin_size]
+                    hpc_intervals = torch.split(hpc_iter_tensor, self.histogram_bin_size, dim=1)
+                    
+                    # Take sum along the time dimension for each chunk to get chunks of size -  Nchannels x 1
+                    sum_hpc_intervals = [torch.sum(hpc_int,dim=1, keepdim=False) for hpc_int in hpc_intervals]
+                    
+                    # Concatenate the bins to get the final feature tensor
+                    hpc_feature_tensor = torch.cat(sum_hpc_intervals, dim=0)
+                    
+                    # Adding one dimension for channel [for compatibility purpose]. N_Channel = 1 in this case.
+                    reduced_batch_hpc.append(torch.unsqueeze(hpc_feature_tensor, dim=0)) 
+
+                batch_tensor = torch.stack(reduced_batch_hpc, dim=0)
+            
+            else:
+                # NOTE: This is not a tensor. It is a list of the iterations.
+                batch_tensor = batch_hpc 
+
+        return batch_tensor, torch.tensor(batch_labels), batch_paths
+
+    def truncate_hpc_tensor(self, hpc_tensor):
+        """
+        Truncates the hpc tensor (Nch x Num_datapoints) based on the value provided in self.truncated_duration
+
+        params:
+            - hpc_tensor: hpc tensor of shape Nch x Num_datapoints with 0th channel containing the time stamps
+
+        Output:
+            - truncated_hpc_tensor: truncated hpc tensor with the time channel removed
+        """
+        # Get the index of the timestamp in the hpc_tensor
+
+        timestamp_array = np.round(hpc_tensor[0].numpy(), decimals=1)
+        if self.truncated_duration > np.amax(timestamp_array):
+            # If the truncated duration is more than the length of collection duration, then return the last collected time stamp
+            truncation_index = len(timestamp_array)
+        else:
+            truncation_index = np.where(timestamp_array == self.truncated_duration)[0][0]+1
+
+        # Truncate the tensor using the index
+        truncated_hpc_tensor = hpc_tensor[:,:truncation_index]
+        # Remove the time axis
+        truncated_hpc_tensor = truncated_hpc_tensor[1:]
+
+        return truncated_hpc_tensor
+
+
+    def perform_feature_reduction(self, resampled_batch_dvfs, resampled_fs):
+        '''
+        Function to reduce the number of features for every iteration to 'reduced_feature_size'. The method also performs truncation of the 
+        telemetry to the first "self.truncation_duration" seconds.
+
+        params:  
+            -resampled_batch_dvfs : list of resampled iterations [iter1, iter2, ... , iterB] where shape of iter1 = Nch x Num_data_points
+            -resampled_fs : sampling frequency of iteration (same for all the iterations)
+        Output : 
+            - feature_reduced_batch_tensor : Tensor of shape (B, Nch, reduced_feature_size)
+        '''
+        # Stores the dimension reduced dvfs
+        reduced_batch_dvfs = []
+
+        # Calculate the number of datapoints in the truncated timeseries
+        numDatapointTruncatedSeries = int(resampled_fs * self.truncated_duration) 
+        
+        for idx, iter in enumerate(resampled_batch_dvfs):
+            
+            # Truncate the time series
+            iter = iter[:,:numDatapointTruncatedSeries]
+            # print(f'Shape of the multivariate time series (without dimensionality reduction) : {iter.shape}')
+            
+            ###################################################### FFT based feature reduction ######################################################
+            # Perform windowed FFT on each iteration (shape: Nch, N_Freq_steps, N_time_steps, 2) Ref : https://pytorch.org/docs/stable/generated/torch.stft.html
+            # Last dimension contains the real and the imaginary part
+            stft_transform = torch.stft(input=iter, n_fft = self.n_fft, return_complex=False)
+            # print(f'Shape of the stft : {stft_transform.shape}')
+
+            # Get the magnitude from the stft (shape : Nch, N_Freq_steps, N_time_steps)
+            stft_transform = torch.sqrt((stft_transform**2).sum(-1))
+            Nch,_,_ = stft_transform.shape
+            # print(f'Shape of the stft magnitude : {stft_transform.shape}')
+
+            channel_dimension_reduced = []
+            # Perform PCA on the time axis to reduce the number of time
+            for channel in stft_transform:
+                # Current axis orientation is (frequency, time). Perform dimensionality reduction on frequency. So swap the orientation. 
+                channel = np.transpose(channel)
+                # Orientation is now (time,frequency)
+                # print(f"- Axis orientation is (time, frequency) : {channel.shape}")
+
+                # Initialize the PCA. Reduce the frequency dimension to self.reduced_frequency_size
+                pca = PCA(n_components=self.reduced_frequency_size)
+                frequency_reduced = pca.fit_transform(channel)
+                
+                # print(f"- Shape of frequency reduced tensor (time,reduced_frequency_size) : {frequency_reduced.shape}")
+                # print(f"  - Variance : {pca.explained_variance_ratio_}")
+                # print(f"  - Sum of Variance : {sum(pca.explained_variance_ratio_)}")
+                
+                # Current axis orientation is (time,frequency). Perform dimensionality reduction on time. So swap the orientation (frequency,time). 
+                frequency_reduced = np.transpose(frequency_reduced)
+                # print(f"- Shape of transposed frequency reduced tensor (reduced_frequency_size,time) : {frequency_reduced.shape}")
+                
+                # Initialize the PCA. Reduce the time dimension to self.reduced_time_size
+                pca = PCA(n_components=self.reduced_time_size)
+                time_frequency_reduced = pca.fit_transform(frequency_reduced)
+
+                # print(f"- Shape of time-reduced frequency-reduced tensor (reduced_frequency_size,reduced_time_size) : {time_frequency_reduced.shape}")
+                # print(f"  - Variance : {pca.explained_variance_ratio_}")
+                # print(f"  - Sum of Variance : {sum(pca.explained_variance_ratio_)}")
+               
+                # Current axis orientation is (frequency,time).  Change orientation to (time, frequency)
+                time_frequency_reduced = np.transpose(time_frequency_reduced)
+                # print(f"- Shape of time-reduced frequency-reduced tensor (reduced_time_size, reduced_frequency_size) : {time_frequency_reduced.shape}")
+                
+                # Flatten the array (Shape : reduced_frequency_size*reduced_time_size)
+                time_frequency_reduced = time_frequency_reduced.flatten()
+                # print(f"- Shape of flattened time-reduced frequency-reduced tensor (reduced_frequency_size*reduced_time_size) : {time_frequency_reduced.shape}")
+                
+                channel_dimension_reduced.append(time_frequency_reduced)
+            
+            channel_dimension_reduced_tensor = np.stack(channel_dimension_reduced, axis=0)
+            # print(f"Shape of channel_dimension_reduced_tensor (Nch, reduced_frequency_size*reduced_time_size) : {channel_dimension_reduced_tensor.shape}")
+
+            #############################################################################################################################################
+
+            reduced_batch_dvfs.append(channel_dimension_reduced_tensor)
+        
+        # Shape : B,Nch,reduced_feature_size
+        reduced_batch_dvfs_tensor = np.stack(reduced_batch_dvfs, axis=0)
+        # print(f"Shape of final batch tensor (B, Nch, reduced_frequency_size*reduced_time_size) : {reduced_batch_dvfs_tensor.shape}")
+        # sys.exit()
+        return torch.tensor(reduced_batch_dvfs_tensor)
+
+    
+    def resample_dvfs(self, batch_dvfs):
+        '''
+        Function to resample a batch of dvfs iterations
+            -Input: batch of iterations
+            -Output : List of resampled batch of iterations, target_frequency (frequency of the resampled batch)
+        '''
+
+        # Get the number of datapoints for each iteration in the batch
+        num_data_points = [b_dvfs.shape[1] for b_dvfs in batch_dvfs]
+        # print(f"- Number of data points per iteration : {num_data_points}")
+        
+        # Calculate the sampling frequency for each iteration in the batch
+        fs_batch = [ndp//self.cd for ndp in num_data_points]
+        # print(f"- Sampling frequency per iteration : {fs_batch}")
+        
+        # Get the max and min sampling frequency (Will be used for resampling)
+        max_fs, min_fs= [max(fs_batch), min(fs_batch)]
+        # print(f"- Maximum and Minimum sampling frequency in the batch : {max_fs,min_fs}")
+        
+        # Check what kind of resampling needs to be performed, and set the corresponding target frequency
+        if(self.resampling_type == 'max'):
+            target_fs = max_fs
+        elif(self.resampling_type == 'min'):
+            target_fs = min_fs
+        elif(self.resampling_type == 'custom'):
+            target_fs = self.custom_num_datapoints/self.cd
+        else:
+            raise NotImplementedError('Incorrect resampling argument provided')
+        
+        # print(f"- Sampling mode : {self.resampling_type} | Target sampling frequency : {target_fs}")
+
+        # Resample each iteration in the batch using the target_fs
+        resampled_batch_dvfs = []
+
+        for idx,iter in enumerate(batch_dvfs):
+            # print(f" -- Shape of the iteration {idx} pre resampling : {iter.shape}")
+            # Initialize the resampler
+            resample_transform = torchaudio.transforms.Resample(orig_freq=fs_batch[idx], new_freq=target_fs, lowpass_filter_width=6, resampling_method='sinc_interpolation')
+
+            r_dvfs = resample_transform(iter)
+            # print(f" -- Shape of the iteration {idx} post sampling : {r_dvfs.shape}")
+            
+            resampled_batch_dvfs.append(r_dvfs)
+
+        return resampled_batch_dvfs, target_fs
+
 def get_dataloader(args, partition, labels, custom_collate_fn, required_partitions, normalize_flag, file_type, N=None):
     '''
     Returns the dataloader objects for the different partitions.
@@ -351,7 +611,7 @@ def get_dataloader(args, partition, labels, custom_collate_fn, required_partitio
         ds_train_full = arm_telemetry_data(partition, labels, split='train', file_type= file_type, normalize=normalize_flag)
     
     if required_partitions["trainSG"]:
-        ds_trainSG_full = arm_telemetry_data(partition, labels, split='val', file_type= file_type, normalize=normalize_flag)
+        ds_trainSG_full = arm_telemetry_data(partition, labels, split='trainSG', file_type= file_type, normalize=normalize_flag)
     
     if required_partitions["test"]:
         ds_test_full = arm_telemetry_data(partition, labels, split='test', file_type= file_type, normalize=normalize_flag)
@@ -426,251 +686,6 @@ def get_dataloader(args, partition, labels, custom_collate_fn, required_partitio
         )
 
     return trainloader, trainSGloader, testloader
-
-
-class custom_collator(object):
-    def __init__(self, args, file_type):
-        self.cd = args.collection_duration # Duration for which data is collected
-        
-        ###################### Feature engineering parameters of the GLOBL channels ######################
-        self.chunk_time = args.chunk_time # Window size (in s) over which the spectrogram will be calculated  
-        
-        # Parameters for truncating the dvfs time series. Consider the first truncated_duration seconds of the iteration
-        self.truncated_duration = args.truncated_duration 
-        
-        # Parameters for resampling DVFS
-        self.custom_num_datapoints = args.custom_num_datapoints # Number of data points in the resampled time series
-        self.resampling_type = args.resampling_type # Type of resampling. Can take one of the following values: ['max', 'min', 'custom']
-        self.resample = args.resample # Whether or not to resample. Default : True
-
-        # Parameters for feature reduction (for DVFS file_type)
-        self.reduced_frequency_size = args.reduced_frequency_size # dimension of frequency axis after dimensionality reduction
-        self.reduced_time_size = args.reduced_time_size # dimension of time axis after dimensionality reduction
-        self.reduced_feature_flag = args.feature_engineering_flag # If True, then we perform feature reduction. Defaule is False.
-        self.n_fft = args.n_fft # Order of fft for stft
-
-        # For selecting file_type : "dvfs" or "simpleperf"
-        self.file_type = file_type
-
-        ###################### Feature engineering parameters of the HPC channels ########################
-        # Feature engineering parameters for simpleperf files
-        self.histogram_bins = args.histogram_bins
-
-    def __call__(self, batch):
-        '''
-        Takes a batch of files, outputs a tensor of of batch, the corresponding labels, and the corresponding file paths
-        - If reduced_feature_flag is False, then will return a list instead of a stacked tensor, for both dvfs and simpleperf
-        '''
-        if self.file_type == "dvfs":
-            # batch_dvfs : [iter1, iter2, ... , iterB]  (NOTE: iter1 - Nchannels x T1 i.e. Every iteration has a different length. Duration of data collection is the same. Sampling frequency is different for each iteration)
-            # batch_labels : [iter1_label, iter2_label, ...iterB_label]
-            # batch_paths : [iter1_path, iter2_path, ...iterB_path]
-            batch_dvfs, batch_labels, batch_paths = list(zip(*batch))
-
-            ############################################################## Truncating module ###################################################################### 
-            """ Truncates each sample to the first truncated_duration seconds of the iteration """    
-
-            #######################################################################################################################################################
-            
-            if self.resample:
-                # Resample so that each iteration in the batch has the same number of datapoints
-                resampled_batch_dvfs, target_fs = self.resample_dvfs(batch_dvfs)
-            else:
-                resampled_batch_dvfs = batch_dvfs 
-            # ######################## Testing the resampling module #######################################
-            ## To plot the original and the resampled data (for verifying the resampling)
-            # print('********************* Testing the resampling module *********************')
-            # for i in range(15):
-            #     chn_idx = i
-            #     btch_idx = 0
-            #     fig, axs = plt.subplots(2)
-            #     axs[0].plot([i for i rin range(len(batch_dvfs[btch_idx][chn_idx]))],batch_dvfs[btch_idx][chn_idx])
-            #     axs[1].plot([i for i in range(len(resampled_batch_dvfs[btch_idx][chn_idx]))],resampled_batch_dvfs[btch_idx][chn_idx])
-            #     plt.savefig('pics/resampling_channel'+str(i)+'_.png', dpi=300)
-            #     plt.close()
-            ################################################################################################
-
-
-            # Perform feature reduction on the batch of resampled dataset, so that number of features for every sample = 40
-            if self.reduced_feature_flag: #If reduced_feature_flag is set to True, then perform feature reduction
-                batch_tensor = self.perform_feature_reduction(resampled_batch_dvfs, target_fs)
-            
-            else: # Just pass the resampled dvfs data
-                batch_tensor = resampled_batch_dvfs
-            # print(batch_tensor.shape)
-        
-            ################################################################################################
-
-        elif self.file_type == "simpleperf":
-            # batch_hpc : [iter1, iter2, ... , iterB]  (NOTE: iter1 - Nchannels x T1 i.e. Every iteration has a different length. Duration of data collection is the same. Sampling frequency is different for each iteration)
-            # batch_labels : [iter1_label, iter2_label, ...iterB_label]
-            # batch_paths : [iter1_path, iter2_path, ...iterB_path]
-            batch_hpc, batch_labels, batch_paths = list(zip(*batch))
-
-            if self.reduced_feature_flag:
-                # Stores the dimension reduced hpc for each patch
-                reduced_batch_hpc = []
-
-                # Divide the individual variates of the tensor into histogram_bins number of intervals. And sum over the individual intervals to form feature size of 32 for each variate.
-                for hpc_iter_tensor in batch_hpc:
-                    ## hpc_intervals : [chunks of size - Nchannels x self.histogram_bins]
-                    hpc_intervals = torch.split(hpc_iter_tensor, self.histogram_bins, dim=1)
-                    
-                    # Take sum along the time dimension for each chunk to get chunks of size -  Nchannels x 1
-                    sum_hpc_intervals = [torch.sum(hpc_int,dim=1, keepdim=False) for hpc_int in hpc_intervals]
-                    
-                    # Concatenate the bins to get the final feature tensor
-                    hpc_feature_tensor = torch.cat(sum_hpc_intervals, dim=0)
-                    
-                    reduced_batch_hpc.append(torch.unsqueeze(hpc_feature_tensor, dim=0)) # Adding one dimension for channel [for compatibility purpose]. N_Channel = 1 in this case.
-
-                batch_tensor = torch.stack(reduced_batch_hpc, dim=0)
-            
-            else:
-                batch_tensor = batch_hpc # NOTE: This is not a tensor. It is a list of the iterations.
-
-        return batch_tensor, torch.tensor(batch_labels), batch_paths
-
-
-    def perform_feature_reduction(self, resampled_batch_dvfs, resampled_fs):
-        '''
-        Function to reduce the number of features for every iteration to 'reduced_feature_size'
-            Input:  -resampled_batch_dvfs - list of resampled iterations [iter1, iter2, ... , iterB] where shape of iter1 = Nch x Num_data_points
-                    -resampled_fs - sampling frequency of iteration (same for all the iterations)
-            Output : - feature_reduced_batch_tensor - Tensor of shape (B, Nch, reduced_feature_size)
-        '''
-        # Stores the dimension reduced dvfs
-        reduced_batch_dvfs = []
-
-        for idx, iter in enumerate(resampled_batch_dvfs):
-            
-            # print(f'Shape of the multivariate time series (without dimensionality reduction) : {iter.shape}')
-            
-            ###################################################### FFT based feature reduction ######################################################
-            # Perform windowed FFT on each iteration (shape: Nch, N_Freq_steps, N_time_steps, 2) Ref : https://pytorch.org/docs/stable/generated/torch.stft.html
-            # Last dimension contains the real and the imaginary part
-            stft_transform = torch.stft(input=iter, n_fft = self.n_fft, return_complex=False)
-            # print(f'Shape of the stft : {stft_transform.shape}')
-
-            # Get the magnitude from the stft (shape : Nch, N_Freq_steps, N_time_steps)
-            stft_transform = torch.sqrt((stft_transform**2).sum(-1))
-            Nch,_,_ = stft_transform.shape
-            # print(f'Shape of the stft magnitude : {stft_transform.shape}')
-
-            channel_dimension_reduced = []
-            # Perform PCA on the time axis to reduce the number of time
-            for channel in stft_transform:
-                # Current axis orientation is (frequency, time). Perform dimensionality reduction on frequency. So swap the orientation. 
-                channel = np.transpose(channel)
-                # Orientation is now (time,frequency)
-                # print(f"- Axis orientation is (time, frequency) : {channel.shape}")
-
-                # Initialize the PCA. Reduce the frequency dimension to self.reduced_frequency_size
-                pca = PCA(n_components=self.reduced_frequency_size)
-                frequency_reduced = pca.fit_transform(channel)
-                
-                # print(f"- Shape of frequency reduced tensor (time,reduced_frequency_size) : {frequency_reduced.shape}")
-                # print(f"  - Variance : {pca.explained_variance_ratio_}")
-                # print(f"  - Sum of Variance : {sum(pca.explained_variance_ratio_)}")
-                
-                # Current axis orientation is (time,frequency). Perform dimensionality reduction on time. So swap the orientation (frequency,time). 
-                frequency_reduced = np.transpose(frequency_reduced)
-                # print(f"- Shape of transposed frequency reduced tensor (reduced_frequency_size,time) : {frequency_reduced.shape}")
-                
-                # Initialize the PCA. Reduce the time dimension to self.reduced_time_size
-                pca = PCA(n_components=self.reduced_time_size)
-                time_frequency_reduced = pca.fit_transform(frequency_reduced)
-
-                # print(f"- Shape of time-reduced frequency-reduced tensor (reduced_frequency_size,reduced_time_size) : {time_frequency_reduced.shape}")
-                # print(f"  - Variance : {pca.explained_variance_ratio_}")
-                # print(f"  - Sum of Variance : {sum(pca.explained_variance_ratio_)}")
-               
-                # Current axis orientation is (frequency,time).  Change orientation to (time, frequency)
-                time_frequency_reduced = np.transpose(time_frequency_reduced)
-                # print(f"- Shape of time-reduced frequency-reduced tensor (reduced_time_size, reduced_frequency_size) : {time_frequency_reduced.shape}")
-                
-                # Flatten the array (Shape : reduced_frequency_size*reduced_time_size)
-                time_frequency_reduced = time_frequency_reduced.flatten()
-                # print(f"- Shape of flattened time-reduced frequency-reduced tensor (reduced_frequency_size*reduced_time_size) : {time_frequency_reduced.shape}")
-                
-                channel_dimension_reduced.append(time_frequency_reduced)
-            
-            channel_dimension_reduced_tensor = np.stack(channel_dimension_reduced, axis=0)
-            # print(f"Shape of channel_dimension_reduced_tensor (Nch, reduced_frequency_size*reduced_time_size) : {channel_dimension_reduced_tensor.shape}")
-
-            #############################################################################################################################################
-
-            reduced_batch_dvfs.append(channel_dimension_reduced_tensor)
-        
-        # Shape : B,Nch,reduced_feature_size
-        reduced_batch_dvfs_tensor = np.stack(reduced_batch_dvfs, axis=0)
-        # print(f"Shape of final batch tensor (B, Nch, reduced_frequency_size*reduced_time_size) : {reduced_batch_dvfs_tensor.shape}")
-        # sys.exit()
-        return torch.tensor(reduced_batch_dvfs_tensor)
-
-    def truncate_dvfs(self, batch_dvfs):
-        """ 
-        Truncate the dvfs time series to truncated duration 
-        params:
-            - batch_dvfs: list of dvfs time series
-            - List of truncated dvfs time series
-        """
-        # Get the number of datapoints for each iteration in the batch
-        num_data_points = [b_dvfs.shape[1] for b_dvfs in batch_dvfs]
-        # print(f"- Number of data points per iteration : {num_data_points}")
-        
-        # Calculate the sampling frequency for each iteration in the batch
-        fs_batch = [ndp//self.cd for ndp in num_data_points]
-        # print(f"- Sampling frequency per iteration : {fs_batch}")
-        
-        # Calculate the number of datapoints for each iteration based on the truncated duration
-        pass
-
-    def resample_dvfs(self, batch_dvfs):
-        '''
-        Function to resample a batch of dvfs iterations
-            -Input: batch of iterations
-            -Output : List of resampled batch of iterations, target_frequency (frequency of the resampled batch)
-        '''
-
-        # Get the number of datapoints for each iteration in the batch
-        num_data_points = [b_dvfs.shape[1] for b_dvfs in batch_dvfs]
-        # print(f"- Number of data points per iteration : {num_data_points}")
-        
-        # Calculate the sampling frequency for each iteration in the batch
-        fs_batch = [ndp//self.cd for ndp in num_data_points]
-        # print(f"- Sampling frequency per iteration : {fs_batch}")
-        
-        # Get the max and min sampling frequency (Will be used for resampling)
-        max_fs, min_fs= [max(fs_batch), min(fs_batch)]
-        # print(f"- Maximum and Minimum sampling frequency in the batch : {max_fs,min_fs}")
-        
-        # Check what kind of resampling needs to be performed, and set the corresponding target frequency
-        if(self.resampling_type == 'max'):
-            target_fs = max_fs
-        elif(self.resampling_type == 'min'):
-            target_fs = min_fs
-        elif(self.resampling_type == 'custom'):
-            target_fs = self.custom_num_datapoints/self.cd
-        else:
-            raise NotImplementedError('Incorrect resampling argument provided')
-        
-        # print(f"- Sampling mode : {self.resampling_type} | Target sampling frequency : {target_fs}")
-
-        # Resample each iteration in the batch using the target_fs
-        resampled_batch_dvfs = []
-
-        for idx,iter in enumerate(batch_dvfs):
-            # print(f" -- Shape of the iteration {idx} pre resampling : {iter.shape}")
-            # Initialize the resampler
-            resample_transform = torchaudio.transforms.Resample(orig_freq=fs_batch[idx], new_freq=target_fs, lowpass_filter_width=6, resampling_method='sinc_interpolation')
-
-            r_dvfs = resample_transform(iter)
-            # print(f" -- Shape of the iteration {idx} post sampling : {r_dvfs.shape}")
-            
-            resampled_batch_dvfs.append(r_dvfs)
-
-        return resampled_batch_dvfs, target_fs
 
 class dataset_generator_downloader:
     def __init__(self, filter_values, dataset_type):

@@ -29,11 +29,11 @@ class Config:
         """
         # Reads the base configuration file
         self.args = self.read(file)
-        print(f"------------------------------------------------------------------------")
+        print(f"---------------------------------------------------------------------------------------------------------------")
         print(f"Base configuration file : {file}")
         for key,val in self.args.items():
-            print(f"{key}: {val}")
-        print(f"------------------------------------------------------------------------")
+            print(f" - {key}: {val}")
+        print(f"---------------------------------------------------------------------------------------------------------------")
     
     def update(self, updatefile):
         """
@@ -46,10 +46,10 @@ class Config:
         print(f"Updating the configuration using the file : {updatefile}")
         for key, val in uArgs.items():
             self.args[key] = val
-            print(f"{key} : {val}")
+            print(f" - {key} : {val}")
 
         print("Configuration file updated")
-        print(f"------------------------------------------------------------------------")
+        print(f"---------------------------------------------------------------------------------------------------------------")
 
 
     @staticmethod
@@ -70,7 +70,7 @@ class Config:
         """
         print("========== Configuration File ==========")
         for key in parser:
-            print(f"{key}: {parser[key]}")
+            print(f" - {key}: {parser[key]}")
 
     def get_config(self):
         """
