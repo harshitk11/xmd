@@ -318,13 +318,13 @@ class arm_telemetry_data(torch.utils.data.Dataset):
 
 class custom_collator(object):
     def __init__(self, args, file_type):
-        self.cd = args.collected_duration # Duration for which data is collected
+        # Parameters for truncating the dvfs and hpc time series. Consider the first truncated_duration seconds of the iteration
+        self.truncated_duration = args.truncated_duration
+        # Duration for which data is collected 
+        self.cd = args.collected_duration 
         
         ###################### Feature engineering parameters of the GLOBL channels ######################
         self.chunk_time = args.chunk_time # Window size (in s) over which the spectrogram will be calculated  
-        
-        # Parameters for truncating the dvfs time series. Consider the first truncated_duration seconds of the iteration
-        self.truncated_duration = args.truncated_duration 
         
         # Parameters for resampling DVFS
         self.custom_num_datapoints = args.custom_num_datapoints # Number of data points in the resampled time series
@@ -360,20 +360,6 @@ class custom_collator(object):
                 resampled_batch_dvfs, target_fs = self.resample_dvfs(batch_dvfs)
             else:
                 resampled_batch_dvfs = batch_dvfs 
-            ######################## Testing the resampling module #######################################
-            # # To plot the original and the resampled data (for verifying the resampling)
-            # print('********************* Testing the resampling module *********************')
-            # for i in range(15):
-            #     chn_idx = i
-            #     btch_idx = 0
-            #     fig, axs = plt.subplots(2)
-            #     axs[0].plot([i for i in range(len(batch_dvfs[btch_idx][chn_idx]))],batch_dvfs[btch_idx][chn_idx])
-            #     axs[1].plot([i for i in range(len(resampled_batch_dvfs[btch_idx][chn_idx]))],resampled_batch_dvfs[btch_idx][chn_idx])
-            #     plt.savefig('resampling_channel'+str(i)+'_.png', dpi=300)
-            #     plt.close()
-            # exit()
-            ################################################################################################
-
 
             # Perform feature reduction on the batch of resampled dataset, so that number of features for every sample = 40
             if self.reduced_feature_flag: #If reduced_feature_flag is set to True, then perform feature reduction
@@ -381,9 +367,7 @@ class custom_collator(object):
             
             else: # Just pass the resampled dvfs data
                 batch_tensor = resampled_batch_dvfs
-            # print(batch_tensor.shape)
-        
-            ################################################################################################
+         
 
         elif self.file_type == "simpleperf":
             # batch_hpc : [iter1, iter2, ... , iterB]  (NOTE: iter1 - Nchannels x T1 i.e. Every iteration has a different length. Duration of data collection is the same. Sampling frequency is different for each iteration)
@@ -468,68 +452,50 @@ class custom_collator(object):
             
             # Truncate the time series
             iter = iter[:,:numDatapointTruncatedSeries]
-            # print(f'Shape of the multivariate time series (without dimensionality reduction) : {iter.shape}')
             
             ###################################################### FFT based feature reduction ######################################################
-            # Perform windowed FFT on each iteration (shape: Nch, N_Freq_steps, N_time_steps, 2) Ref : https://pytorch.org/docs/stable/generated/torch.stft.html
+            # Perform windowed FFT on each iteration (shape of stft_transform: Nch, N_Freq_steps, N_time_steps, 2) Ref : https://pytorch.org/docs/stable/generated/torch.stft.html
             # Last dimension contains the real and the imaginary part
             stft_transform = torch.stft(input=iter, n_fft = self.n_fft, return_complex=False)
-            # print(f'Shape of the stft : {stft_transform.shape}')
-
+            
             # Get the magnitude from the stft (shape : Nch, N_Freq_steps, N_time_steps)
             stft_transform = torch.sqrt((stft_transform**2).sum(-1))
             Nch,_,_ = stft_transform.shape
-            # print(f'Shape of the stft magnitude : {stft_transform.shape}')
-
+            
             channel_dimension_reduced = []
             # Perform PCA on the time axis to reduce the number of time
-            for channel in stft_transform:
+            for chn_indx,channel in enumerate(stft_transform):
                 # Current axis orientation is (frequency, time). Perform dimensionality reduction on frequency. So swap the orientation. 
                 channel = np.transpose(channel)
+               
                 # Orientation is now (time,frequency)
-                # print(f"- Axis orientation is (time, frequency) : {channel.shape}")
-
                 # Initialize the PCA. Reduce the frequency dimension to self.reduced_frequency_size
+                # NOTE: PCA will raise warning for time series with constant value. This is fine. The feature reduced vector will be all zeros.
                 pca = PCA(n_components=self.reduced_frequency_size)
                 frequency_reduced = pca.fit_transform(channel)
-                
-                # print(f"- Shape of frequency reduced tensor (time,reduced_frequency_size) : {frequency_reduced.shape}")
-                # print(f"  - Variance : {pca.explained_variance_ratio_}")
-                # print(f"  - Sum of Variance : {sum(pca.explained_variance_ratio_)}")
-                
+               
                 # Current axis orientation is (time,frequency). Perform dimensionality reduction on time. So swap the orientation (frequency,time). 
                 frequency_reduced = np.transpose(frequency_reduced)
-                # print(f"- Shape of transposed frequency reduced tensor (reduced_frequency_size,time) : {frequency_reduced.shape}")
                 
                 # Initialize the PCA. Reduce the time dimension to self.reduced_time_size
                 pca = PCA(n_components=self.reduced_time_size)
                 time_frequency_reduced = pca.fit_transform(frequency_reduced)
 
-                # print(f"- Shape of time-reduced frequency-reduced tensor (reduced_frequency_size,reduced_time_size) : {time_frequency_reduced.shape}")
-                # print(f"  - Variance : {pca.explained_variance_ratio_}")
-                # print(f"  - Sum of Variance : {sum(pca.explained_variance_ratio_)}")
-               
                 # Current axis orientation is (frequency,time).  Change orientation to (time, frequency)
                 time_frequency_reduced = np.transpose(time_frequency_reduced)
-                # print(f"- Shape of time-reduced frequency-reduced tensor (reduced_time_size, reduced_frequency_size) : {time_frequency_reduced.shape}")
                 
                 # Flatten the array (Shape : reduced_frequency_size*reduced_time_size)
                 time_frequency_reduced = time_frequency_reduced.flatten()
-                # print(f"- Shape of flattened time-reduced frequency-reduced tensor (reduced_frequency_size*reduced_time_size) : {time_frequency_reduced.shape}")
                 
                 channel_dimension_reduced.append(time_frequency_reduced)
             
             channel_dimension_reduced_tensor = np.stack(channel_dimension_reduced, axis=0)
-            # print(f"Shape of channel_dimension_reduced_tensor (Nch, reduced_frequency_size*reduced_time_size) : {channel_dimension_reduced_tensor.shape}")
-
             #############################################################################################################################################
 
             reduced_batch_dvfs.append(channel_dimension_reduced_tensor)
         
         # Shape : B,Nch,reduced_feature_size
         reduced_batch_dvfs_tensor = np.stack(reduced_batch_dvfs, axis=0)
-        # print(f"Shape of final batch tensor (B, Nch, reduced_frequency_size*reduced_time_size) : {reduced_batch_dvfs_tensor.shape}")
-        # sys.exit()
         return torch.tensor(reduced_batch_dvfs_tensor)
 
     
@@ -542,15 +508,12 @@ class custom_collator(object):
 
         # Get the number of datapoints for each iteration in the batch
         num_data_points = [b_dvfs.shape[1] for b_dvfs in batch_dvfs]
-        # print(f"- Number of data points per iteration : {num_data_points}")
         
         # Calculate the sampling frequency for each iteration in the batch
         fs_batch = [ndp//self.cd for ndp in num_data_points]
-        # print(f"- Sampling frequency per iteration : {fs_batch}")
         
         # Get the max and min sampling frequency (Will be used for resampling)
         max_fs, min_fs= [max(fs_batch), min(fs_batch)]
-        # print(f"- Maximum and Minimum sampling frequency in the batch : {max_fs,min_fs}")
         
         # Check what kind of resampling needs to be performed, and set the corresponding target frequency
         if(self.resampling_type == 'max'):
@@ -562,19 +525,13 @@ class custom_collator(object):
         else:
             raise NotImplementedError('Incorrect resampling argument provided')
         
-        # print(f"- Sampling mode : {self.resampling_type} | Target sampling frequency : {target_fs}")
-
         # Resample each iteration in the batch using the target_fs
         resampled_batch_dvfs = []
 
         for idx,iter in enumerate(batch_dvfs):
-            # print(f" -- Shape of the iteration {idx} pre resampling : {iter.shape}")
             # Initialize the resampler
             resample_transform = torchaudio.transforms.Resample(orig_freq=fs_batch[idx], new_freq=target_fs, lowpass_filter_width=6, resampling_method='sinc_interpolation')
-
             r_dvfs = resample_transform(iter)
-            # print(f" -- Shape of the iteration {idx} post sampling : {r_dvfs.shape}")
-            
             resampled_batch_dvfs.append(r_dvfs)
 
         return resampled_batch_dvfs, target_fs
@@ -1681,154 +1638,14 @@ def main():
     # print(dataset_generator_instance.count_number_of_apks())
     # exit()
 
-    # NOTE: There is a need to introduce randomness while generating the dataloader lists, so that we can perform cross validation
+    # ######################### Testing the datasplit generator #########################
+    # test_path = "/data/hkumar64/projects/arm-telemetry/xmd/data/cd-dataset"
+    # x = dataset_split_generator(seed=10, partition_dist=[0.7,0.3,0], dataset_type="std-dataset")
+    # x.create_all_datasets(base_location=test_path)
+    # exit()
+    # ###################################################################################
+    pass
     
-    ######################### Testing the datasplit generator #########################
-    test_path = "/data/hkumar64/projects/arm-telemetry/xmd/data/cd-dataset"
-    x = dataset_split_generator(seed=10, partition_dist=[0.7,0.3,0], dataset_type="std-dataset")
-    x.create_all_datasets(base_location=test_path)
-    exit()
-    ###################################################################################
     
-    # ################################# Trim the benign and malware to create a balanced dataset [Only for unknown testing] #################################
-    # # Less number of files for malware so get number of malware files
-    # num_malware = len(shortlisted_files_malware)
-    # # Slice the benign list to have equal number of benign
-    # shortlisted_files_benign = shortlisted_files_benign[:num_malware]
-    
-    # # Sanity check for balanced dataset
-    # if len(shortlisted_files_malware) != len(shortlisted_files_benign):
-    #     raise ValueError(f"Unbalanced dataset : benign - {len(shortlisted_files_benign)} | malware - {len(shortlisted_files_malware)}")
-    # ####################################################################################################################################################### 
-    
-    ############################------------------------- Testing the dataloader components for fusing HPC and DVFS -------------------------############################
-    # Folders containing the benign logs [HPC and DVFS]
-    benign_dvfs_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/benign/dvfs'
-    benign_simpleperf_rn1_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/benign/simpleperf/rn1'
-    benign_simpleperf_rn2_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/benign/simpleperf/rn2'
-    benign_simpleperf_rn3_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/benign/simpleperf/rn3'
-    benign_simpleperf_rn4_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/benign/simpleperf/rn4'
-
-    # Folders containing the malware logs [HPC and DVFS]
-    malware_dvfs_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/malware/dvfs'
-    malware_simpleperf_rn1_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/malware/simpleperf/rn1'
-    malware_simpleperf_rn2_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/malware/simpleperf/rn2'
-    malware_simpleperf_rn3_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/malware/simpleperf/rn3'
-    malware_simpleperf_rn4_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/malware/simpleperf/rn4'
-
-    # Folders to fuse when generating the HPC fusion predictions
-    hpc_fusion_benign_path_list = [benign_simpleperf_rn1_path, benign_simpleperf_rn2_path, benign_simpleperf_rn3_path, benign_simpleperf_rn4_path]
-    hpc_fusion_malware_path_list = [malware_simpleperf_rn1_path, malware_simpleperf_rn2_path, malware_simpleperf_rn3_path, malware_simpleperf_rn4_path]
-
-    # Folders to fuse when generating the DVFS+HPC fusion predictions
-    total_fusion_benign_path_list = [benign_dvfs_path]+hpc_fusion_benign_path_list
-    total_fusion_malware_path_list = [malware_dvfs_path]+hpc_fusion_malware_path_list
-
-    test_path_list = [benign_simpleperf_rn1_path, benign_simpleperf_rn2_path]
-
-    # common_app_hashes_benign = get_common_apps([malware_simpleperf_rn1_path, malware_dvfs_path])
-    # common_app_hashes_malware = get_common_apps(total_fusion_benign_path_list)
-    
-    # hash_list = get_hpc_dvfs_file_list(benign_simpleperf_rn2_path, benign_dvfs_path)
-
-    base_location = "/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/"
-    # b_matched_list, m_matched_list = create_matched_lists(base_location)
-
-    all_datasets = create_all_datasets(base_location=base_location)
-    # sys.exit()
-
-    rn_val_minus_one = 2
-    ds_train_full = arm_telemetry_data(partition = all_datasets[1][0][rn_val_minus_one], labels = all_datasets[1][1][rn_val_minus_one], split='train', file_type= 'simpleperf', normalize=False)
-    
-
-    tensor,label,path = ds_train_full.__getitem__(159)
-
-    # print(tensor.shape)
-    # print(tensor.type)
-    # print(label)
-    # print(path)
-    # # print(tensor)
-
-    mts = pd.DataFrame(data=np.transpose(tensor), columns=['perf1','perf2','perf3'], dtype= float)
-    # mts['perf1']=mts['perf1'].astype(float)
-    # mts['perf2']=mts['perf2'].astype(float)
-    # mts['perf3']=mts['perf3'].astype(float)
-    print(mts.dtypes)
-    # Plot all the columns of the dataframe
-    plt.figure()
-    
-    mts.plot(subplots=True,
-             figsize = (10,10),
-             legend = False )
-    
-    plt.savefig('/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/preprocess/test_hpc.png', dpi=300)
-    plt.close('all')
-
-    sys.exit()
-
-    custom_collate_fn = custom_collator(truncated_duration=30, 
-                reduced_feature_flag=True, 
-                reduced_frequency_size=12, 
-                reduced_time_size=4,
-                file_type="simpleperf")
-    
-    trainloader = torch.utils.data.DataLoader(
-        ds_train_full,
-        num_workers=1,
-        batch_size=5,
-        collate_fn=custom_collate_fn,
-        shuffle=False,
-        sampler = torch.utils.data.SequentialSampler(ds_train_full)
-    )
-    iter_trainloader = iter(trainloader)
-    batch_spec_tensor, labels, f_paths = next(iter_trainloader)
-    print(batch_spec_tensor.shape, labels, f_paths)
-    sys.exit()
-    
-    ############################-------------------------------------------------------------------------------------------------------------############################
-
-    # Create the labels for the benign and malware files
-    benign_dvfs_path = '/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/benign/dvfs'
-    malware_dvfs_path ='/data/hkumar64/projects/arm-telemetry/conv-lstm/ConvLSTM_pytorch/data/data_updated/malware/dvfs'
-    benign_label, malware_label = create_labels(benign_dvfs_path, malware_dvfs_path)
-
-    # Create the labels dict by merging the benign and malware labels
-    # Format : {file_path1 : 0, file_path2: 1, ...}
-    labels = {**benign_label,**malware_label}
-
-    # Create the partition dict
-    partition = create_splits(benign_label, malware_label, partition_dist=None)
-
-    ###################################### Testing the dataloader ######################################
-    ds_train_full = arm_telemetry_data(partition, labels, split='train', normalize=True)
-    # x,y = ds_train_full.__getitem__(0)
-    # print(x.shape)
-
-    # Intitialize the custom collator
-    # Intitialize the custom collator
-    custom_collate_fn = custom_collator(truncated_duration=30, 
-                reduced_feature_flag=True, 
-                reduced_frequency_size=12, 
-                reduced_time_size=4)
-
-    trainloader = torch.utils.data.DataLoader(
-        ds_train_full,
-        num_workers=1,
-        batch_size=5,
-        collate_fn=custom_collate_fn,
-        shuffle=False,
-        sampler = torch.utils.data.SequentialSampler(ds_train_full)
-    )
-    iter_trainloader = iter(trainloader)
-    batch_spec_tensor, labels, f_paths = next(iter_trainloader)
-    print(batch_spec_tensor.shape, labels, f_paths)
-    print("---------------------------------------------------------")
-    batch_spec_tensor, labels, f_paths = next(iter_trainloader)
-    print(batch_spec_tensor.shape, labels, f_paths)
-    ###################################################################################################
-        
-
-
-
 if __name__ == '__main__':
     main()
