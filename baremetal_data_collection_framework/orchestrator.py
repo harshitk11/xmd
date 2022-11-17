@@ -754,6 +754,7 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 
 					# Stop gnirehtet
 					subprocess.Popen('gnirehtet stop', shell=True).wait()
+					time.sleep(2)
 
 					# Populate the checksum-after-malware field of all the partitions
 					extract_partition_checksum(flag_before_malware= 0)
@@ -780,16 +781,16 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 						subprocess.Popen('gnirehtet start', shell=True).wait()
 						time.sleep(2)
 
-					else: # Non user data partitions have not been modified
-						print("- Un-modified system partitions: Flash data partition.")
+					else: 
+						# System partitions have not been modified
+						print("- Un-modified system partitions: Reboot device.")
 
-						# Only flash the user data
-						firmware_flash_script.flash_data_partition()
+						# Reboot the device
+						reboot_device()
+						# Wait for services to start up
+						time.sleep(5)
 
-						# After firmware flashing is complete, populate the checksum-before-malware field of all the partitions
-						extract_partition_checksum(flag_before_malware= 1)	
-						
-						# Start gnirehtet again (Make sure that the relay server is started in a separate terminal)
+						# Start gnirehtet again
 						subprocess.Popen('gnirehtet start', shell=True).wait()
 						time.sleep(2)
 
@@ -826,6 +827,19 @@ def collect_data(path_dir, MALWARE_FLAG, dest_folder, log_file_handler, app_type
 		upload_process.start()
 		# Wait for the upload to finish
 		upload_process.join()
+
+		######################## Flash the data partition (Done after data-collection of every apk) ########################
+		time.sleep(2)
+		firmware_flash_script.flash_data_partition()
+
+		if MALWARE_FLAG:
+			# After firmware flashing is complete, populate the checksum-before-malware field of all the partitions
+			extract_partition_checksum(flag_before_malware= 1)	
+		
+		# Start gnirehtet again 
+		subprocess.Popen('gnirehtet start', shell=True).wait()
+		time.sleep(2)
+		####################################################################################################################
 		
 	# Stop gnirehtet
 	subprocess.Popen('gnirehtet stop', shell=True, stdout=subprocess.PIPE).wait()	
