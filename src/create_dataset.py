@@ -37,6 +37,8 @@ import pickle
 from glob import glob
 import shutil
 import traceback
+from multiprocessing import Pool, Process
+
 
 BENIGN_LABEL = 0
 MALWARE_LABEL = 1
@@ -55,7 +57,7 @@ def download(dbx, path, download_path):
     """Download a file.
     Return the bytes of the file, or None if it doesn't exist.
     """
-    #  path = '/%s/%s/%s' % (folder, subfolder.replace(os.path.sep, '/'), name)
+    print(f'******* Local download location :{download_path} *******')
     while '//' in path:
         path = path.replace('//', '/')
     with stopwatch('download'):
@@ -644,404 +646,6 @@ def get_dataloader(args, partition, labels, custom_collate_fn, required_partitio
 
     return trainloader, trainSGloader, testloader
 
-class dataset_generator_downloader:
-    def __init__(self, filter_values, dataset_type):
-        """
-        Dataset generator : Downloads the dataset from the dropbox.
-
-        params:
-            - filter_values : Filter values for the logcat files
-                            Format : [runtime_per_file, num_logcat_lines_per_file, freq_logcat_event_per_file]
-            - dataset_type : Type of dataset that you want to create
-                            Can take one of the following values : ["std-dataset","cd-dataset","bench-dataset"]
-            
-        """
-        self.filter_values = filter_values
-        self.dataset_type = dataset_type
-
-        # Root directory of xmd
-        self.root_dir_path = os.path.dirname(os.path.realpath(__file__)).replace("/src","")
-
-        #################################################### Dataset info ######################################################## 
-        # Information about the std dataset and the cd dataset
-        self.std_cd_dataset_info = {
-                "std_malware":{"dbx_path":"/results_android_zoo_malware_all_rerun", "app_type":"malware", "dtype":"std_malware"},
-                "std_benign":{"dbx_path":"/results_android_zoo_benign_with_reboot", "app_type":"benign", "dtype":"std_benign"},
-                "cd_malware":{"dbx_path":"/results_android_zoo_unknown_malware", "app_type":"malware", "dtype":"cd_malware"},
-                "cd_benign":{"dbx_path":"/results_android_zoo_unknown_benign", "app_type":"benign", "dtype":"cd_benign"}
-                }
-        
-        # Information about the bench dataset. Benchmark logs are divided over three different folders.
-        self.bench_dataset_info={"bench1":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module",
-                    "bench2":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part2",
-                    "bench3":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part3"}
-        ###########################################################################################################################
-
-        ############################### Generating black list for malware apks in the std-dataset #################################
-        vt_malware_report_path = os.path.join(self.root_dir_path, "res", "virustotal", "hash_virustotal_report_malware")
-        
-        # If the black list already exists, then it will load the previous black list. To generate the new blacklist, delete
-        # the not_malware_hashlist at "xmd/res/virustotal"
-        self.std_dataset_malware_blklst = self.get_black_list_from_vt_report(vt_malware_report_path)
-        ###########################################################################################################################
-
-    def get_black_list_from_vt_report(self, vt_malware_report_path):
-        """
-        Just for the std-dataset: Gets the list of malware apks with 0 or 1 vt positives. We will not process the logs 
-        from these apks as malware.
-
-        params:
-            - vt_malware_report_path : Path of the virustotal report of the malware
-         
-        Output:
-            - not_malware : List of hashes of apks with 0 or 1 vt positive
-        """
-        # Location where the not_malware list is stored
-        not_malware_list_loc = os.path.join(self.root_dir_path,"res","virustotal","not_malware_hashlist")
-
-        # Check if the not_malware_hashlist is already created. If yes, then return the previous list
-        if os.path.isfile(not_malware_list_loc):
-            with open(not_malware_list_loc, 'rb') as fp:
-                not_malware = pickle.load(fp)
-            return not_malware
-        
-        # Load the virustotal report
-        with open(file=vt_malware_report_path) as f:
-            report = json.load(f)
-
-        # List storing the malware with 0 or 1 positive results
-        not_malware = []
-
-        # Parsing the virustotal report
-        malware_details = {}
-        for hash, hash_details in report.items():
-            # Store the malware hash, positives, total, percentage positive
-            malware_details[hash] = {'positives':hash_details['results']['positives'],
-                                    'total':hash_details['results']['total'],
-                                    'percentage_positive':round((float(hash_details['results']['positives'])/float(hash_details['results']['total']))*100,2),
-                                    'associated_malware_families':[avengine_report['result'] for _,avengine_report in hash_details['results']['scans'].items() if avengine_report['result']]}
-            
-            # Identify the malware apks with 0 or 1 vt_positives
-            if int(hash_details['results']['positives']) == 0 or int(hash_details['results']['positives']) == 1 :
-                not_malware.append(hash)
-
-        # Save the not_malware list as a pickled file
-        with open(not_malware_list_loc, 'wb') as fp:
-            pickle.dump(not_malware, fp)
-            
-        return not_malware
-
-    @staticmethod
-    def extract_hash_from_filename(file_list):
-        """
-        Extract hashes from the shortlisted files [Used for counting the number of apks for the std-dataset and the cd-dataset].
-        params:
-            - file_list : List of files from which the hashes needs to be extracted
-        Output:
-            - hash_list : List of hashes that is extracted from the file list
-        """
-        # To store the list of hashes
-        hash_list = []
-
-        for fname in file_list:
-            # Extract the hash from the filename
-            hashObj = re.search(r'.*_(.*).apk.*', fname, re.M|re.I)
-            hash_ = hashObj.group(1)
-
-            if hash_ not in hash_list:
-                hash_list.append(hash_)
-
-        return hash_list
-
-    def filter_shortlisted_files(self, file_list):
-        """
-        Filters out the blacklisted files from the shortlisted files. 
-        [Used for filtering out the blacklisted files from the malware apks in the std-dataset].
-        params:
-            - file_list : List of file names on which the filter needs to be applied
-        
-        Output:
-            - filtered_file_list : List of file names after the filter has been applied
-        """
-        # For tracking the number of files that are filtered out
-        num_files_filtered_out = 0
-        
-        # Storing the file names post filter
-        filtered_file_list = []
-
-        for fname in file_list:
-            # Extract the hash from the filename
-            hashObj = re.search(r'.*_(.*).apk.*', fname, re.M|re.I)
-            hash_ = hashObj.group(1)
-
-            # If the hash is not in the blklst, then add it to the filtered list
-            if hash_ not in  self.std_dataset_malware_blklst:
-                filtered_file_list.append(fname)
-            else:
-                num_files_filtered_out += 1
-
-        print(f"- Number of malware files that are filtered out: {num_files_filtered_out}")
-        return filtered_file_list
-
-    def create_shortlisted_files(self, parser_info_loc, apply_filter = True):
-        '''
-        Function to create a list of shortlisted files, based on logcat
-        Input: 
-            - parser_info_loc : Location of the parser_info file
-            - apply_filter : If True, then applies the filter. Else, no filter (in the case of benchmark benign files)
-            
-        Output: 
-            - shortlisted_files : List containing the dropbox location of the shortlisted files
-            - logcat_attributes_list : List containing the corresponding logcat attributes of the shortlisted files
-        '''
-        # List of locations of the shortlisted files [Output of this method]
-        shortlisted_files = []
-        # List of corresponding logcat attributes for the shortlisted files
-        logcat_attributes_list = []
-
-        # Load the JSON containing the parsed logcat info for each iteration of data collection (You need to run codes/dropbox_module.py to generate the file)
-        with open(parser_info_loc,"r") as fp:
-            data=json.load(fp)
-
-        # Extracting the threshold values
-        if apply_filter:
-            # If cd-dataset or std-dataset, then apply the logcat filter
-            runtime_thr, num_logcat_event_thr, freq_logcat_event_thr = self.filter_values
-        else: 
-            # No need to filter the benchmark dataset since benchmarks run to completion always
-            runtime_thr, num_logcat_event_thr, freq_logcat_event_thr = [0,0,0]
-
-        for apk_folder,value in data.items():
-            # apk_folder = Path of apk logcat folder (Contains the apk name)
-            # value = [Number of logcat files, {logcat_file_1: [avg_freq, num_logcat_lines, time_diff]}, {logcat_file_2: [avg_freq, num_logcat_lines, time_diff]}, ...]
-
-            for ind in range(value[0]): # Value[0] = number of logcat files for each apk. Each logcat file has its own dict.
-                i = ind + 1 # For indexing into the corresponding dict in the list.
-                
-                for file_name,logcat_attributes in value[i].items():
-                    # file_name = Name of the logcat file
-                    # logcat_attributes = [avg_freq, num_logcat_lines, time_diff]
-
-                    if((logcat_attributes[0] > freq_logcat_event_thr) and (logcat_attributes[1] > num_logcat_event_thr) and (logcat_attributes[2] > runtime_thr)):
-                        # File satisfies all the threshold, add the full location of the file to the list
-                        shortlisted_files.append(apk_folder+'/'+file_name) 
-                        logcat_attributes_list.append([logcat_attributes[0],logcat_attributes[1],logcat_attributes[2]])
-
-        return shortlisted_files, logcat_attributes_list
-
-    ######################################## Helper methods to download the files from dropbox ########################################
-    @staticmethod
-    def create_dropbox_location(shortlisted_files, file_type):
-        '''
-        Function to create a list of dropbox locations and corresponding locations on the local machine
-        from the shortlisted files based on the file_type (dvfs, logcat, simpleperf)
-        Input :
-                - shortlisted_files : Full dropbox locations of the logcat files of the shortlisted files
-                - file_type : (dvfs, logcat, simpleperf)
-                
-        Output : 
-                -shortlisted_files_mod (List of dropbox locations for the given file_type)
-                -localhost_loc (List of corresponding file locations on the local host)
-        '''
-
-        shortlisted_files_mod = [] # Contains the location in dropbox
-        localhost_loc = [] # Contains the location of the file in the local host
-
-        for location in shortlisted_files:
-
-            # Extract the iter, rn, and base_locations
-            inputObj = re.search(r'(\/.*\/)logcat\/(.*logcat)(.*)', location, re.M|re.I)
-            base_loc = inputObj.group(1)
-            file_loc = inputObj.group(2)
-            iter_rn = inputObj.group(3)
-            
-            # Extract the rn number [Will be used for separating the HPC data into buckets]
-            rn_obj = re.search(r'.*\_(.*)\.txt', iter_rn, re.M|re.I)
-            rn_num = rn_obj.group(1) # Will be one of the following : ['rn1','rn2','rn3','rn4']
-            
-            # Extract the apk hash [Will inject the hash into the file name to accurately track the apks the logs are collected from]
-            hash_obj = re.search(r'.*_(.*)\.apk', base_loc, re.M|re.I)
-            apk_hash = hash_obj.group(1)
-            
-            if file_type == 'dvfs':
-                new_loc = base_loc+'dvfs/'+file_loc.replace('logcat','devfreq_data')+iter_rn # Dropbox location
-                rem_loc = 'dvfs/'+apk_hash+'_'+file_loc.replace('logcat','devfreq_data')+iter_rn # Location on the local host
-            elif file_type == 'logcat':
-                new_loc = location
-                rem_loc = 'logcat/'+apk_hash+'_'+file_loc+iter_rn
-            
-            # For performanc counter, we have 4 buckets : rn1, rn2, rn3, rn4. 
-            elif file_type == 'simpleperf':
-                new_loc = base_loc+'simpleperf/'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-                
-                # Create local location depending on the rn bucket
-                if (rn_num == 'rn1'):
-                    rem_loc = 'simpleperf/rn1/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-                elif (rn_num == 'rn2'):
-                    rem_loc = 'simpleperf/rn2/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-                elif (rn_num == 'rn3'):
-                    rem_loc = 'simpleperf/rn3/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-                elif (rn_num == 'rn4'):
-                    rem_loc = 'simpleperf/rn4/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
-                else :
-                    raise ValueError('Parser returned an incorrect run number')     
-            
-            else: 
-                raise ValueError('Incorrect file type provided')
-
-            shortlisted_files_mod.append(new_loc)
-            localhost_loc.append(rem_loc)
-
-        return shortlisted_files_mod, localhost_loc
-    
-    def download_shortlisted_files(self, shortlisted_files, file_type, app_type):
-        '''
-        Function to download the shortlisted files from dropbox
-        Input : -shortlisted_files (List containing the dropbox location of the shortlisted files)
-                -file_type (the file type that you want to download : 'logcat', 'dvfs', or, 'simpleperf')
-                -app_type ('malware' or 'benign')
-               
-        Output : Downloads the shortlisted files in <root_dir>/data/<dataset_type> 
-                       
-        '''
-        # Create the download location on the local host
-        base_download_location = os.path.join(self.root_dir_path, "data", self.dataset_type, app_type)
-        os.system(f'mkdir -p {os.path.join(base_download_location, file_type)}')
-
-        # Get the dropbox api key
-        with open(os.path.join(self.root_dir_path,"src","dropbox_api_key")) as f:
-            access_token = f.readlines()[0]
-
-        # Authenticate with Dropbox
-        print('Authenticating with Dropbox...')
-        dbx = dropbox.Dropbox(access_token)
-        print('...authenticated with Dropbox owned by ' + dbx.users_get_current_account().name.display_name)
-
-        # If file_type is simpleperf then create rn bucket folders for each of them
-        if (file_type == 'simpleperf'):
-            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn1')}")
-            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn2')}")
-            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn3')}")
-            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn4')}")
-
-        # Create the dropbox location for the give file_type from the shortlisted_files
-        dropbox_location, localhost_loc = dataset_generator_downloader.create_dropbox_location(shortlisted_files, file_type)
-
-        # Counter to see how many files were not downloaded
-        not_download_count = 0
-
-        # Start the download
-        for i, location in enumerate(dropbox_location):
-            try:
-                # print(f'-------Dropbox location : {location}')
-                print(f'******* Local host location :{os.path.join(base_download_location, localhost_loc[i])} *******')
-                download(dbx, location, os.path.join(base_download_location, localhost_loc[i]))
-            except:
-                not_download_count+=1
-                traceback.print_exc()
-                print(f'File not downloaded : Count = {not_download_count}')
-
-        # Print the total files not downloaded
-        print(f" ******************* Total files not downloaded : {not_download_count} *******************")
-        
-
-    ###################################################################################################################################
-    def count_number_of_apks(self):
-        """
-        Count the number of apks (hashes) in the benign and malware file_list.
-        params:
-            - file_list: List of file names (including location)
-
-        Output: 
-            - num_apk_benign, num_apk_malware : Number of benign and malware apks
-        """
-
-        shortlisted_files_benign,shortlisted_files_malware = self.generate_dataset(download_file_flag=False)
-
-        # Get the hash_list for benign and malware
-        hashlist_benign = dataset_generator_downloader.extract_hash_from_filename(shortlisted_files_benign)
-        hashlist_malware = dataset_generator_downloader.extract_hash_from_filename(shortlisted_files_malware)
-
-        return len(hashlist_benign), len(hashlist_malware)
-
-    
-    def generate_dataset(self, download_file_flag):
-        """
-        Generates the dataset (benign,malware) based on the dataset_type and filter_values
-        params:
-            - download_file_flag : If True, then will download all the shortlisted files
-
-        Output:
-            - Generated dataset at the specified location
-            - returns shortlisted_files_benign, shortlisted_files_malware (Corresponding dvfs and simpleperf files will be downloaded
-                if download_file_flag is True.)
-        """
-        # 1. Create shortlisted files based on the logcat filter and dataset type
-        if self.dataset_type == "std-dataset":
-            # Get the location of the parser info files
-            parser_info_benign = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_std_benign.json")
-            parser_info_malware = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_std_malware.json")
-
-            # Create shortlisted files for benign and malware
-            shortlisted_files_benign, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign, apply_filter=True)
-            shortlisted_files_malware, _ = self.create_shortlisted_files(parser_info_loc=parser_info_malware, apply_filter=True)
-
-            # Filter out the blacklisted files from the malware file list
-            shortlisted_files_malware = self.filter_shortlisted_files(shortlisted_files_malware)
-
-            
-        elif self.dataset_type == "cd-dataset":
-            # Get the location of the parser info files
-            parser_info_benign = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_cd_benign.json")
-            parser_info_malware = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_cd_malware.json")
-
-            # Create shortlisted files for benign and malware
-            shortlisted_files_benign, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign, apply_filter=True)
-            shortlisted_files_malware, _ = self.create_shortlisted_files(parser_info_loc=parser_info_malware, apply_filter=True)
-
-        elif self.dataset_type == "bench-dataset":
-            # Get the location of the parser info files
-            # Benchmark files are distributed over three different locations
-            parser_info_benign1 = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_bench1.json")
-            parser_info_benign2 = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_bench2.json")
-            parser_info_benign3 = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_bench3.json")
-            parser_info_malware = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_std_malware.json")
-
-            # Create shortlisted files for benign and malware
-            shortlisted_files_benign1, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign1, apply_filter=False)
-            shortlisted_files_benign2, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign2, apply_filter=False)
-            shortlisted_files_benign3, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign3, apply_filter=False)
-            shortlisted_files_malware, _ = self.create_shortlisted_files(parser_info_loc=parser_info_malware, apply_filter=True)
-
-            # Merge all the benchmark files to get one single list
-            shortlisted_files_benign = shortlisted_files_benign1+shortlisted_files_benign2+shortlisted_files_benign3
-
-            # Filter out the blacklisted files from the malware file list
-            shortlisted_files_malware = self.filter_shortlisted_files(shortlisted_files_malware)
-
-            
-        else:
-            raise(ValueError("Incorrect dataset type specified"))
-
-        #################### Dataset Info ####################
-        print(f"Information for the dataset : {self.dataset_type}")
-        print(f"- Number of benign files : {len(shortlisted_files_benign)}")
-        print(f"- Number of malware files : {len(shortlisted_files_malware)}")
-        ###################################################### 
-        
-        
-        # 2. Download the shortlisted files at <root_dir>/data/<dataset_type> 
-        if download_file_flag:
-            print("--------- Downloading all the shortlisted files ---------")
-            # Downloading the shortlisted dvfs files [Needs to be executed only once to download the files]
-            malware_dvfs_path =  self.download_shortlisted_files(shortlisted_files_malware, file_type= 'dvfs', app_type= 'malware')
-            benign_dvfs_path =  self.download_shortlisted_files(shortlisted_files_benign, file_type= 'dvfs', app_type= 'benign')
-            
-            # Downloading the shortlisted performance counter files [Needs to be executed only once to download the files]
-            malware_simpeperf_path =  self.download_shortlisted_files(shortlisted_files_malware, file_type= 'simpleperf', app_type= 'malware')
-            benign_simpleperf_path =  self.download_shortlisted_files(shortlisted_files_benign, file_type= 'simpleperf', app_type= 'benign')
-
-        return shortlisted_files_benign,shortlisted_files_malware
 
 class dataset_split_generator:
     
@@ -1625,16 +1229,440 @@ class dataset_split_generator:
                 (DVFS_partition_for_DVFS_individual,DVFS_partition_labels_for_DVFS_individual),
                 (DVFS_partition_for_DVFS_fusion,DVFS_partition_labels_for_DVFS_fusion)]
 
+
+class dataset_generator_downloader:
+    def __init__(self, filter_values, dataset_type):
+        """
+        Dataset generator : Downloads the dataset from the dropbox.
+
+        params:
+            - filter_values : Filter values for the logcat files
+                            Format : [runtime_per_file, num_logcat_lines_per_file, freq_logcat_event_per_file]
+            - dataset_type : Type of dataset that you want to create
+                            Can take one of the following values : ["std-dataset","cd-dataset","bench-dataset"]
+            
+        """
+        self.filter_values = filter_values
+        self.dataset_type = dataset_type
+
+        # Root directory of xmd
+        self.root_dir_path = os.path.dirname(os.path.realpath(__file__)).replace("/src","")
+
+        #################################################### Dataset info ######################################################## 
+        # Information about the std dataset and the cd dataset
+        self.std_cd_dataset_info = {
+                "std_malware":{"dbx_path":"/results_android_zoo_malware_all_rerun", "app_type":"malware", "dtype":"std_malware"},
+                "std_benign":{"dbx_path":"/results_android_zoo_benign_with_reboot", "app_type":"benign", "dtype":"std_benign"},
+                "cd_malware":{"dbx_path":"/results_android_zoo_unknown_malware", "app_type":"malware", "dtype":"cd_malware"},
+                "cd_benign":{"dbx_path":"/results_android_zoo_unknown_benign", "app_type":"benign", "dtype":"cd_benign"}
+                }
+        
+        # Information about the bench dataset. Benchmark logs are divided over three different folders.
+        self.bench_dataset_info={"bench1":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module",
+                    "bench2":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part2",
+                    "bench3":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part3"}
+        ###########################################################################################################################
+
+        ############################### Generating black list for malware apks in the std-dataset #################################
+        vt_malware_report_path = os.path.join(self.root_dir_path, "res", "virustotal", "hash_virustotal_report_malware")
+        
+        # If the black list already exists, then it will load the previous black list. To generate the new blacklist, delete
+        # the not_malware_hashlist at "xmd/res/virustotal"
+        self.std_dataset_malware_blklst = self.get_black_list_from_vt_report(vt_malware_report_path)
+        ###########################################################################################################################
+
+    def get_black_list_from_vt_report(self, vt_malware_report_path):
+        """
+        Just for the std-dataset: Gets the list of malware apks with 0 or 1 vt positives. We will not process the logs 
+        from these apks as malware.
+
+        params:
+            - vt_malware_report_path : Path of the virustotal report of the malware
+         
+        Output:
+            - not_malware : List of hashes of apks with 0 or 1 vt positive
+        """
+        # Location where the not_malware list is stored
+        not_malware_list_loc = os.path.join(self.root_dir_path,"res","virustotal","not_malware_hashlist")
+
+        # Check if the not_malware_hashlist is already created. If yes, then return the previous list
+        if os.path.isfile(not_malware_list_loc):
+            with open(not_malware_list_loc, 'rb') as fp:
+                not_malware = pickle.load(fp)
+            return not_malware
+        
+        # Load the virustotal report
+        with open(file=vt_malware_report_path) as f:
+            report = json.load(f)
+
+        # List storing the malware with 0 or 1 positive results
+        not_malware = []
+
+        # Parsing the virustotal report
+        malware_details = {}
+        for hash, hash_details in report.items():
+            # Store the malware hash, positives, total, percentage positive
+            malware_details[hash] = {'positives':hash_details['results']['positives'],
+                                    'total':hash_details['results']['total'],
+                                    'percentage_positive':round((float(hash_details['results']['positives'])/float(hash_details['results']['total']))*100,2),
+                                    'associated_malware_families':[avengine_report['result'] for _,avengine_report in hash_details['results']['scans'].items() if avengine_report['result']]}
+            
+            # Identify the malware apks with 0 or 1 vt_positives
+            if int(hash_details['results']['positives']) == 0 or int(hash_details['results']['positives']) == 1 :
+                not_malware.append(hash)
+
+        # Save the not_malware list as a pickled file
+        with open(not_malware_list_loc, 'wb') as fp:
+            pickle.dump(not_malware, fp)
+            
+        return not_malware
+
+    @staticmethod
+    def extract_hash_from_filename(file_list):
+        """
+        Extract hashes from the shortlisted files [Used for counting the number of apks for the std-dataset and the cd-dataset].
+        params:
+            - file_list : List of files from which the hashes needs to be extracted
+        Output:
+            - hash_list : List of hashes that is extracted from the file list
+        """
+        # To store the list of hashes
+        hash_list = []
+
+        for fname in file_list:
+            # Extract the hash from the filename
+            hashObj = re.search(r'.*_(.*).apk.*', fname, re.M|re.I)
+            hash_ = hashObj.group(1)
+
+            if hash_ not in hash_list:
+                hash_list.append(hash_)
+
+        return hash_list
+
+    def filter_shortlisted_files(self, file_list):
+        """
+        Filters out the blacklisted files from the shortlisted files. 
+        [Used for filtering out the blacklisted files from the malware apks in the std-dataset].
+        params:
+            - file_list : List of file names on which the filter needs to be applied
+        
+        Output:
+            - filtered_file_list : List of file names after the filter has been applied
+        """
+        # For tracking the number of files that are filtered out
+        num_files_filtered_out = 0
+        
+        # Storing the file names post filter
+        filtered_file_list = []
+
+        for fname in file_list:
+            # Extract the hash from the filename
+            hashObj = re.search(r'.*_(.*).apk.*', fname, re.M|re.I)
+            hash_ = hashObj.group(1)
+
+            # If the hash is not in the blklst, then add it to the filtered list
+            if hash_ not in  self.std_dataset_malware_blklst:
+                filtered_file_list.append(fname)
+            else:
+                num_files_filtered_out += 1
+
+        print(f"- Number of malware files that are filtered out: {num_files_filtered_out}")
+        return filtered_file_list
+
+    def create_shortlisted_files(self, parser_info_loc, apply_filter = True):
+        '''
+        Function to create a list of shortlisted files, based on logcat
+        Input: 
+            - parser_info_loc : Location of the parser_info file
+            - apply_filter : If True, then applies the filter. Else, no filter (in the case of benchmark benign files)
+            
+        Output: 
+            - shortlisted_files : List containing the dropbox location of the shortlisted files
+            - logcat_attributes_list : List containing the corresponding logcat attributes of the shortlisted files
+        '''
+        # List of locations of the shortlisted files [Output of this method]
+        shortlisted_files = []
+        # List of corresponding logcat attributes for the shortlisted files
+        logcat_attributes_list = []
+
+        # Load the JSON containing the parsed logcat info for each iteration of data collection (You need to run codes/dropbox_module.py to generate the file)
+        with open(parser_info_loc,"r") as fp:
+            data=json.load(fp)
+
+        # Extracting the threshold values
+        if apply_filter:
+            # If cd-dataset or std-dataset, then apply the logcat filter
+            runtime_thr, num_logcat_event_thr, freq_logcat_event_thr = self.filter_values
+        else: 
+            # No need to filter the benchmark dataset since benchmarks run to completion always
+            runtime_thr, num_logcat_event_thr, freq_logcat_event_thr = [0,0,0]
+
+        for apk_folder,value in data.items():
+            # apk_folder = Path of apk logcat folder (Contains the apk name)
+            # value = [Number of logcat files, {logcat_file_1: [avg_freq, num_logcat_lines, time_diff]}, {logcat_file_2: [avg_freq, num_logcat_lines, time_diff]}, ...]
+
+            for ind in range(value[0]): # Value[0] = number of logcat files for each apk. Each logcat file has its own dict.
+                i = ind + 1 # For indexing into the corresponding dict in the list.
+                
+                for file_name,logcat_attributes in value[i].items():
+                    # file_name = Name of the logcat file
+                    # logcat_attributes = [avg_freq, num_logcat_lines, time_diff]
+
+                    if((logcat_attributes[0] > freq_logcat_event_thr) and (logcat_attributes[1] > num_logcat_event_thr) and (logcat_attributes[2] > runtime_thr)):
+                        # File satisfies all the threshold, add the full location of the file to the list
+                        shortlisted_files.append(apk_folder+'/'+file_name) 
+                        logcat_attributes_list.append([logcat_attributes[0],logcat_attributes[1],logcat_attributes[2]])
+
+        return shortlisted_files, logcat_attributes_list
+
+    ######################################## Helper methods to download the files from dropbox ########################################
+    @staticmethod
+    def create_dropbox_location(shortlisted_files, file_type):
+        '''
+        Function to create a list of dropbox locations and corresponding locations on the local machine
+        from the shortlisted files based on the file_type (dvfs, logcat, simpleperf)
+        Input :
+                - shortlisted_files : Full dropbox locations of the logcat files of the shortlisted files
+                - file_type : (dvfs, logcat, simpleperf)
+                
+        Output : 
+                -shortlisted_files_mod (List of dropbox locations for the given file_type)
+                -localhost_loc (List of corresponding file locations on the local host)
+        '''
+
+        shortlisted_files_mod = [] # Contains the location in dropbox
+        localhost_loc = [] # Contains the location of the file in the local host
+
+        for location in shortlisted_files:
+
+            # Extract the iter, rn, and base_locations
+            inputObj = re.search(r'(\/.*\/)logcat\/(.*logcat)(.*)', location, re.M|re.I)
+            base_loc = inputObj.group(1)
+            file_loc = inputObj.group(2)
+            iter_rn = inputObj.group(3)
+            
+            # Extract the rn number [Will be used for separating the HPC data into buckets]
+            rn_obj = re.search(r'.*\_(.*)\.txt', iter_rn, re.M|re.I)
+            rn_num = rn_obj.group(1) # Will be one of the following : ['rn1','rn2','rn3','rn4']
+            
+            # Extract the apk hash [Will inject the hash into the file name to accurately track the apks the logs are collected from]
+            hash_obj = re.search(r'.*_(.*)\.apk', base_loc, re.M|re.I)
+            apk_hash = hash_obj.group(1)
+            
+            if file_type == 'dvfs':
+                new_loc = base_loc+'dvfs/'+file_loc.replace('logcat','devfreq_data')+iter_rn # Dropbox location
+                rem_loc = 'dvfs/'+apk_hash+'_'+file_loc.replace('logcat','devfreq_data')+iter_rn # Location on the local host
+            elif file_type == 'logcat':
+                new_loc = location
+                rem_loc = 'logcat/'+apk_hash+'_'+file_loc+iter_rn
+            
+            # For performanc counter, we have 4 buckets : rn1, rn2, rn3, rn4. 
+            elif file_type == 'simpleperf':
+                new_loc = base_loc+'simpleperf/'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                
+                # Create local location depending on the rn bucket
+                if (rn_num == 'rn1'):
+                    rem_loc = 'simpleperf/rn1/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                elif (rn_num == 'rn2'):
+                    rem_loc = 'simpleperf/rn2/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                elif (rn_num == 'rn3'):
+                    rem_loc = 'simpleperf/rn3/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                elif (rn_num == 'rn4'):
+                    rem_loc = 'simpleperf/rn4/'+apk_hash+'_'+file_loc.replace('_logcat','')+iter_rn.replace('iter_','it')
+                else :
+                    raise ValueError('Parser returned an incorrect run number')     
+            
+            else: 
+                raise ValueError('Incorrect file type provided')
+
+            shortlisted_files_mod.append(new_loc)
+            localhost_loc.append(rem_loc)
+
+        return shortlisted_files_mod, localhost_loc
     
+    @staticmethod
+    def chunks(lst, n):
+        """Yield successive n-sized chunks from lst."""
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+            
+    def download_shortlisted_files(self, shortlisted_files, file_type, app_type, num_download_threads):
+        '''
+        Function to download the shortlisted files from dropbox
+        params : 
+            -shortlisted_files : List containing the dropbox location of the shortlisted files
+            -file_type : the file type that you want to download : 'logcat', 'dvfs', or, 'simpleperf'
+            -app_type : 'malware' or 'benign'
+            -num_download_threads : Number of simultaneous download threads.
+            
+        Output : Downloads the shortlisted files in <root_dir>/data/<dataset_type> 
+                       
+        '''
+        # Create the download location on the local host
+        base_download_location = os.path.join(self.root_dir_path, "data", self.dataset_type, app_type)
+        os.system(f'mkdir -p {os.path.join(base_download_location, file_type)}')
+
+        # Get the dropbox api key
+        with open(os.path.join(self.root_dir_path,"src","dropbox_api_key")) as f:
+            access_token = f.readlines()[0]
+
+        # Authenticate with Dropbox
+        print('Authenticating with Dropbox...')
+        dbx = dropbox.Dropbox(access_token)
+        print('...authenticated with Dropbox owned by ' + dbx.users_get_current_account().name.display_name)
+
+        # If file_type is simpleperf then create rn bucket folders for each of them
+        if (file_type == 'simpleperf'):
+            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn1')}")
+            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn2')}")
+            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn3')}")
+            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn4')}")
+
+        # Create the dropbox location for the give file_type from the shortlisted_files
+        dropbox_location, localhost_loc = dataset_generator_downloader.create_dropbox_location(shortlisted_files, file_type)
+
+        # Counter to see how many files were not downloaded
+        not_download_count = 0
+
+        if num_download_threads > 1:
+            # Start the download [Downloads in parallel]
+            for dbx_loc_chunk, local_loc_chunk in zip(dataset_generator_downloader.chunks(dropbox_location,num_download_threads),dataset_generator_downloader.chunks(localhost_loc,num_download_threads)):
+                arguments = ((dbx,dbx_loc,os.path.join(base_download_location,local_loc)) for dbx_loc,local_loc in zip(dbx_loc_chunk,local_loc_chunk))
+                processList = []              
+                try:
+                    for arg in arguments:
+                        download_process = Process(target=download, name="Downloader", args=arg)
+                        processList.append(download_process)
+                        download_process.start()
+                    
+                    for p in processList:
+                        p.join()
+                except:
+                    continue
+               
+        else:
+            # Start the download [Downloads serially]
+            for i, location in enumerate(dropbox_location):
+                try:
+                    download(dbx, location, os.path.join(base_download_location, localhost_loc[i]))
+                except:
+                    not_download_count+=1
+                    traceback.print_exc()
+                    print(f'File not downloaded : Count = {not_download_count}')
+
+            # Print the total files not downloaded
+            print(f" ******************* Total files not downloaded : {not_download_count} *******************")
+        
+
+    ###################################################################################################################################
+    def count_number_of_apks(self):
+        """
+        Count the number of apks (hashes) in the benign and malware file_list.
+        params:
+            - file_list: List of file names (including location)
+
+        Output: 
+            - num_apk_benign, num_apk_malware : Number of benign and malware apks
+        """
+
+        shortlisted_files_benign,shortlisted_files_malware = self.generate_dataset(download_file_flag=False)
+
+        # Get the hash_list for benign and malware
+        hashlist_benign = dataset_generator_downloader.extract_hash_from_filename(shortlisted_files_benign)
+        hashlist_malware = dataset_generator_downloader.extract_hash_from_filename(shortlisted_files_malware)
+
+        return len(hashlist_benign), len(hashlist_malware)
+
+    
+    def generate_dataset(self, download_file_flag, num_download_threads=0):
+        """
+        Generates the dataset (benign,malware) based on the dataset_type and filter_values
+        params:
+            - download_file_flag : If True, then will download all the shortlisted files
+            - num_download_threads : Number of simultaneous download threads. Only needed when download_file_flag is True.
+            
+
+        Output:
+            - Generated dataset at the specified location
+            - returns shortlisted_files_benign, shortlisted_files_malware (Corresponding dvfs and simpleperf files will be downloaded
+                if download_file_flag is True.)
+        """
+        # 1. Create shortlisted files based on the logcat filter and dataset type
+        if self.dataset_type == "std-dataset":
+            # Get the location of the parser info files
+            parser_info_benign = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_std_benign.json")
+            parser_info_malware = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_std_malware.json")
+
+            # Create shortlisted files for benign and malware
+            shortlisted_files_benign, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign, apply_filter=True)
+            shortlisted_files_malware, _ = self.create_shortlisted_files(parser_info_loc=parser_info_malware, apply_filter=True)
+
+            # Filter out the blacklisted files from the malware file list
+            shortlisted_files_malware = self.filter_shortlisted_files(shortlisted_files_malware)
+
+            
+        elif self.dataset_type == "cd-dataset":
+            # Get the location of the parser info files
+            parser_info_benign = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_cd_benign.json")
+            parser_info_malware = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_cd_malware.json")
+
+            # Create shortlisted files for benign and malware
+            shortlisted_files_benign, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign, apply_filter=True)
+            shortlisted_files_malware, _ = self.create_shortlisted_files(parser_info_loc=parser_info_malware, apply_filter=True)
+
+        elif self.dataset_type == "bench-dataset":
+            # Get the location of the parser info files
+            # Benchmark files are distributed over three different locations
+            parser_info_benign1 = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_bench1.json")
+            parser_info_benign2 = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_bench2.json")
+            parser_info_benign3 = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_bench3.json")
+            parser_info_malware = os.path.join(self.root_dir_path, "res/parser_info_files", f"parser_info_std_malware.json")
+
+            # Create shortlisted files for benign and malware
+            shortlisted_files_benign1, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign1, apply_filter=False)
+            shortlisted_files_benign2, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign2, apply_filter=False)
+            shortlisted_files_benign3, _ = self.create_shortlisted_files(parser_info_loc=parser_info_benign3, apply_filter=False)
+            shortlisted_files_malware, _ = self.create_shortlisted_files(parser_info_loc=parser_info_malware, apply_filter=True)
+
+            # Merge all the benchmark files to get one single list
+            shortlisted_files_benign = shortlisted_files_benign1+shortlisted_files_benign2+shortlisted_files_benign3
+
+            # Filter out the blacklisted files from the malware file list
+            shortlisted_files_malware = self.filter_shortlisted_files(shortlisted_files_malware)
+
+            
+        else:
+            raise(ValueError("Incorrect dataset type specified"))
+
+        #################### Dataset Info ####################
+        print(f"Information for the dataset : {self.dataset_type}")
+        print(f"- Number of benign files : {len(shortlisted_files_benign)}")
+        print(f"- Number of malware files : {len(shortlisted_files_malware)}")
+        ###################################################### 
+        
+        
+        # 2. Download the shortlisted files at <root_dir>/data/<dataset_type> 
+        if download_file_flag:
+            print("--------- Downloading all the shortlisted files ---------")
+            # Downloading the shortlisted dvfs files [Needs to be executed only once to download the files]
+            malware_dvfs_path =  self.download_shortlisted_files(shortlisted_files_malware, file_type= 'dvfs', app_type= 'malware', num_download_threads=num_download_threads)
+            benign_dvfs_path =  self.download_shortlisted_files(shortlisted_files_benign, file_type= 'dvfs', app_type= 'benign', num_download_threads=num_download_threads)
+            
+            # Downloading the shortlisted performance counter files [Needs to be executed only once to download the files]
+            malware_simpeperf_path =  self.download_shortlisted_files(shortlisted_files_malware, file_type= 'simpleperf', app_type= 'malware', num_download_threads=num_download_threads)
+            benign_simpleperf_path =  self.download_shortlisted_files(shortlisted_files_benign, file_type= 'simpleperf', app_type= 'benign', num_download_threads=num_download_threads)
+
+        return shortlisted_files_benign,shortlisted_files_malware
+
 def main():
     # # STD-Dataset
     # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="std-dataset")
     # # CD-Dataset
-    # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="cd-dataset")
+    dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="cd-dataset")
     # # Bench-Dataset
     # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="bench-dataset")
     
-    # dataset_generator_instance.generate_dataset(download_file_flag=True)
+    dataset_generator_instance.generate_dataset(download_file_flag=True, num_download_threads=30)
     # print(dataset_generator_instance.count_number_of_apks())
     # exit()
 
