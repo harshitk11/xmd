@@ -31,4 +31,10 @@ Steps to generate the dataset:
     2. `analyse_parser_info_dict`: Class to analyse the statistics and generate runtime plots based on the parser info dicts. `generate_runtime_distribution_plot_all_datasets()` generates the runtime distribution plot of all the apk runs in all the datasets.
     
 - `create_dataset.py`:- 
-    1. `dataset_generator` : Class that filters out the runs (based on the filter) and downloads the dataset from Dropbox.
+    1. `dataset_generator_downloader` : Class that filters out the runs (based on the filter) and downloads the dataset from Dropbox.
+    2. `arm_telemetry_data` : Class containing the dataset object. Reads, parses, and creates a batch of files.
+    3. `custom_collator` : Class containing the collator for the dataloader. Contains all the feature engineering steps for the GLOBL and HPC channels.
+    4. `dataset_split_generator` : Generates the dataset splits for all the classification tasks: DVFS individual, DVFS Fusion, HPC individual, and HPC-DVFS Fusion.
+    5. `get_dataloader()` : Returns the dataloader objects for the different partitions.
+
+
