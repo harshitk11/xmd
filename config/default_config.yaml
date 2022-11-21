@@ -45,5 +45,5 @@ resampling_type: "custom"                             # Type of resampling. Can 
 resample: True                                        # Flag to determine whether or not to resample
 
 # Parameters for feature engineering of HPC
-histogram_bin_size: 32                                    # HPC time series is divided into histogram bins. This parameter dictates the number of datapoints in each bin.
+num_histogram_bins: 32                                    # HPC time series is divided into histogram bins. This parameter defines the number of histogram bins.
 ################################################################################################################################

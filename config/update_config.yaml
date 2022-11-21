@@ -1,4 +1,5 @@
 train_batchsz: 1                                     
-test_batchsz: 20
+test_batchsz: 10
 collected_duration: 40
 num_workers: 0  
+truncated_duration: 100

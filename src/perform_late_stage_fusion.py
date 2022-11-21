@@ -215,21 +215,21 @@ class dataloader_generator:
                                                                                             args = args)
 
         # ################################################################ Testing the supervised learning dataloader ################################################################
-        iter_loader = iter(dataloaderAllClfToi['DVFS_individual']['all']['testloader'])
-        batch_spec_tensor, labels, f_paths = next(iter_loader)
-        f_paths = "\n - ".join(f_paths)
-        print(f"- Shape of batch tensor (B,N_ch,reduced_feature_size) : {batch_spec_tensor.shape}")
-        print(f"- Batch labels : {labels}")
-        print(f"- File Paths : {f_paths}")
-        exit()
-
-        # iter_loader = iter(dataloaderAllClfToi['HPC_individual']['rn2']['testloader'])
+        # iter_loader = iter(dataloaderAllClfToi['DVFS_individual']['all']['testloader'])
         # batch_spec_tensor, labels, f_paths = next(iter_loader)
         # f_paths = "\n - ".join(f_paths)
         # print(f"- Shape of batch tensor (B,N_ch,reduced_feature_size) : {batch_spec_tensor.shape}")
         # print(f"- Batch labels : {labels}")
         # print(f"- File Paths : {f_paths}")
         # exit()
+
+        iter_loader = iter(dataloaderAllClfToi['HPC_individual']['rn2']['testloader'])
+        batch_spec_tensor, labels, f_paths = next(iter_loader)
+        f_paths = "\n - ".join(f_paths)
+        print(f"- Shape of batch tensor (B,N_ch,reduced_feature_size) : {batch_spec_tensor.shape}")
+        print(f"- Batch labels : {labels}")
+        print(f"- File Paths : {f_paths}")
+        exit()
 
         # # Testing the alignment of DVFS and HPC for HPC-DVFS fusion
         # # HPC
@@ -294,7 +294,7 @@ def main():
     ####################################################################################################################################
 
     # Duration of the time series that will be used
-    args.truncated_duration = 20
+    # args.truncated_duration = 20
     # Start the analysis
     main_worker(args=args)
 

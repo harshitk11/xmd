@@ -344,7 +344,7 @@ class custom_collator(object):
 
         ###################### Feature engineering parameters of the HPC channels ########################
         # Feature engineering parameters for simpleperf files
-        self.histogram_bin_size = args.histogram_bin_size
+        self.num_histogram_bins = args.num_histogram_bins
 
     def __call__(self, batch):
         '''
@@ -381,13 +381,13 @@ class custom_collator(object):
                 # Stores the dimension reduced hpc for each patch
                 reduced_batch_hpc = []
 
-                # Divide the individual variates of the tensor into intervals of length histogram_bin_size. And sum over the individual intervals to form feature size of 32 for each variate.
+                # Divide the individual variates of the tensor into num_histogram_bins. And sum over the individual intervals to form feature size of 32 for each variate.
                 for hpc_iter_tensor in batch_hpc:
                     # Take the truncated duration of the tensor
                     hpc_iter_tensor = self.truncate_hpc_tensor(hpc_iter_tensor)
                     
-                    ## hpc_intervals : [chunks of size - Nchannels x self.histogram_bin_size]
-                    hpc_intervals = torch.split(hpc_iter_tensor, self.histogram_bin_size, dim=1)
+                    ## hpc_intervals : [chunks of size - Nchannels x chunk_size] where chunk_size = lengthOfTimeSeries/self.num_histogram_bins
+                    hpc_intervals = torch.tensor_split(hpc_iter_tensor, self.num_histogram_bins, dim=1)
                     
                     # Take sum along the time dimension for each chunk to get chunks of size -  Nchannels x 1
                     sum_hpc_intervals = [torch.sum(hpc_int,dim=1, keepdim=False) for hpc_int in hpc_intervals]
