@@ -32,6 +32,7 @@ test_shuffle: False                                   # Flag for shuffling the t
 
 ################################## Parameters for feature engineering (passed to collate_fn) ###################################
 collected_duration: 90                                # Duration for which the telemetry logs is collected
+step_size_truncated_duration: 5                       # Step size for incrementing the truncated duration
 # Parameters for feature reduction (for GLOBL file_type)
 chunk_time: 1                                         # Window size (in s) over which the spectrogram will be calculated
 feature_engineering_flag: True                        # Flag that decides whether to perform feature engineering on the raw time series data

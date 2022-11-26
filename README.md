@@ -16,9 +16,10 @@ Steps to generate the dataset:
 
 
 ## Functionalities provided by each script in [source directory](/src)
-- `parse_logcat.py`:-
+- `utils.py`: Contains all the basic utilities used by different modules.
     1. `logcat_parser`: Class to parse the logcat file to extract the following information from it: (1) Number of lines,  (2) Timestamp difference to see how long the application executes, and (3) Rate at which logcat events are happening.
-    2. 'analyse_logcat_json' : To plot and observe the statistical trends from all the parsed logcat files.
+    2. `Config` : Class to handle the config files.
+    3. `malware_label_generator` : Contains helper functions to generate VT reports for AVClass.
 
 
 - `dropbox_module.py`:-

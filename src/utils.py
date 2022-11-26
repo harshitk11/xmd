@@ -261,7 +261,7 @@ class malware_label_generator:
             if(response['response_code']==200 and response['results']['response_code']==1):
                 report_dict[hash] = response
                 with open(outputFilePath,'w') as fp:
-                    json.dump(report_dict,fp)
+                    json.dump(report_dict,fp, indent=2)
                 positive=response['results']['positives']
                 total=response['results']['total']
                 print (f"- [{indx}] Hash : {hash} | Num positives : {positive} | Total : {total}")                
@@ -283,7 +283,7 @@ class malware_label_generator:
             - metaInfoPath: Base directory of the folder where all the meta info files are stored
             - outputReportPath: Path where the vt report file will be stored
         """
-        dataset_type = ["std","cd_year1","cd_year2","cd_year3"]
+        dataset_type = ["std_vt10","cd_year1","cd_year2","cd_year3","std"]
 
         # Generating a combined hash list containing hashes of malware in all the datasets
         hashListAllMalware = []
@@ -291,7 +291,7 @@ class malware_label_generator:
             mPath = os.path.join(metaInfoPath, f"meta_info_{datType}_malware.json")
             hashListAllMalware += malware_label_generator.generate_hashlist(metainfo_path = mPath)
 
-        # Now generate the vt report
+        # Now generate the vt report by querying VirusTotal
         malware_label_generator.get_vt_report(hashList = hashListAllMalware, 
                                             outputFilePath = outputReportPath)
 
@@ -377,12 +377,12 @@ def main():
     metaInfoPath = os.path.join(xmd_base_folder, "baremetal_data_collection_framework", "androzoo", "metainfo")
 
     # Path where the final vt report will be saved
-    vtReportSavePath = os.path.join(xmd_base_folder,"res","virustotal","hash_VT_report_all_malware.json")
+    vtReportSavePath = os.path.join(xmd_base_folder,"res","virustotal","hash_VT_report_all_malware_vt10.json")
 
     # Generate the VT report
     eParse = malware_label_generator()
-    # eParse.generate_vt_report_all_malware(metaInfoPath = metaInfoPath, outputReportPath = vtReportSavePath)
-    
+    eParse.generate_vt_report_all_malware(metaInfoPath = metaInfoPath, outputReportPath = vtReportSavePath)
+    exit()
     # Get the detection distribution
     eParse.generate_vt_detection_distribution(VTReportPath="/data/hkumar64/projects/arm-telemetry/xmd/res/virustotal/hash_VT_report_all_malware.json")
     ########################################## Generating VT report for feeding to AVClass ################################################################

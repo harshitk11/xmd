@@ -38,7 +38,8 @@ from glob import glob
 import shutil
 import traceback
 from multiprocessing import Pool, Process
-
+import warnings
+warnings.filterwarnings("ignore")
 
 BENIGN_LABEL = 0
 MALWARE_LABEL = 1
