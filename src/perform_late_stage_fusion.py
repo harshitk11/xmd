@@ -9,7 +9,7 @@ import shutil
 import numpy as np
 import pickle
 import collections
-
+import json
 
 def makehash():
     return collections.defaultdict(makehash)
@@ -340,18 +340,112 @@ class feature_engineered_dataset:
                     for split in ["train","trainSG","test"]:
                         self.fDataset[self.logcat_filter_rtime_threshold][rtime][clf_toi][rnBin][split] = None
 
-    def generate_feature_engineered_dataset(self):
+    @staticmethod
+    def generate_feature_engineered_dataset(args, xmd_base_folder_location):
+        """
+        Function to generate the feature engineered dataset by doing a sweep over the two parameters: logcat-runtime_per_file, truncated_duration 
+        A new dataset is created for each tuple (logcat-runtime_per_file, truncated_duration).
+
+        Writes the details of the generated dataset in the runs directory.
+
+        High-level pseudo code:
+            - for each logcat runtime threshold:
+                    Download the raw dataset
+                    Generate the feature engineered dataset for all truncated durations
+                    Remove the dataset [to save local space]
+
+        params:
+            - args : Uses args.collected_duration to calculate the list of logcat runtime thresholds
+            - xmd_base_folder_location: Base folder of xmd's source code
+        """
+        if not os.path.isdir(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails")):
+            os.mkdir(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails"))
+
+        # Read fDataset (json that stores the paths of all the feature engineered datasets)
+        fAllDatasetPath = os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails","info.json")
+        if os.path.isfile(fAllDatasetPath):
+            with open(fAllDatasetPath,'rb') as fp:
+                fDatasetAllDatasets = json.load(fp)
+
+                if args.dataset_type in fDatasetAllDatasets:
+                    fDataset = fDatasetAllDatasets[args.dataset_type]
+                else:
+                    fDatasetAllDatasets[args.dataset_type] = {}
+                    fDataset = fDatasetAllDatasets[args.dataset_type]
+        else:
+            # If it does not exist, then create a new one.
+            fDatasetAllDatasets = {args.dataset_type:{}}
+            fDataset = fDatasetAllDatasets[args.dataset_type]
+        
+        # Generate a list of the logcat-runtime_per_file values i.e. the iterations that we are downloading has the apks running atleast logcat-runtime_per_file seconds.
+        logcat_rtimeThreshold_list = [i for i in range(0, args.collected_duration, args.step_size_logcat_runtimeThreshold)]
+
+        # For storing the info about the number of benign and malware apks in the filtered dataset
+        numApp_info_dict = {args.dataset_type:{}}
+        
+        for logcatRtimeThreshold in logcat_rtimeThreshold_list:
+            # Set the runtime threshold which is used by dataset_generator_downloader
+            args.runtime_per_file = logcatRtimeThreshold
+            
+            # Download the raw-dataset for the specific value of the logcat filter and generate the numpy files
+            if args.dataset_download_flag:
+                dataset_generator_instance = dataset_generator_downloader(filter_values= [args.runtime_per_file, args.num_logcat_lines_per_file, args.freq_logcat_event_per_file], 
+                                                                            dataset_type=args.dataset_type)
+                dataset_generator_instance.generate_dataset(download_file_flag=args.dataset_download_flag, num_download_threads=args.num_download_threads)
+                
+                ############################ Log the info about this dataset ############################
+                # Count the number of apks from the shortlisted files (This is the number of apks post logcat filter)
+                num_benign,num_malware = dataset_generator_instance.count_number_of_apks()
+                numApp_info_dict[args.dataset_type][args.runtime_per_file] = {"NumBenignAPK":num_benign, "NumMalwareAPK":num_malware, "logcatRuntimeThreshold": args.runtime_per_file, "dataset_type":args.dataset_type}
+
+                with open(os.path.join(args.run_dir, "dataset_info.json"),'w') as fp:
+                    json.dump(numApp_info_dict,fp, indent=2)
+                #########################################################################################
+
+            # Get the dataset type and the partition dist for the dataset split generator
+            dsGen_dataset_type, dsGem_partition_dist = dataloader_generator.get_dataset_type_and_partition_dist(dataset_type = args.dataset_type)
+            
+            # Get the dataset base location
+            dataset_base_location = os.path.join(args.dataset_base_location, args.dataset_type)
+
+            # Generate the dataset splits (partition dict and the labels dict)
+            dsGen = dataset_split_generator(seed=args.seed, 
+                                            partition_dist=dsGem_partition_dist, 
+                                            datasplit_dataset_type=dsGen_dataset_type)
+            all_datasets = dsGen.create_all_datasets(base_location=dataset_base_location)
+
+            ################################################## Generate feature engineered dataset for all truncated durations ##################################################
+            featEngDatsetBasePath = os.path.join(xmd_base_folder_location,"data","featureEngineeredDataset",args.dataset_type)
+            featEngineeringDriver = feature_engineered_dataset(args=args, 
+                                                        all_dataset_partitionDict_label = all_datasets, 
+                                                        dataset_type = dsGen_dataset_type, 
+                                                        results_path = featEngDatsetBasePath,
+                                                        fDataset=fDataset)
+            fDataset = featEngineeringDriver.generate_feature_engineered_dataset_per_logcat_filter()
+            #####################################################################################################################################################################
+
+            # Dump the updated fDataset
+            fDatasetAllDatasets[args.dataset_type] = fDataset
+            with open(fAllDatasetPath,'w') as fp:
+                json.dump(fDatasetAllDatasets,fp, indent=2)
+            
+            # Delete the raw-dataset
+            os.system(f"rm -r {dataset_base_location}")
+
+    def generate_feature_engineered_dataset_per_logcat_filter(self):
         """
         Method to generate the feature engineered dataset for all the classification tasks for a given logcat filter-value.
         
         Output:
-            Updates fDataset which is a parameter of the class.
+            Updates fDataset which is a parameter of the class. Returns the updated fDataset.
         """
         for rtime in self.rtime_list:
             print(f"----------- Generating feature engineered dataset for truncated duration : {rtime} -----------")
-            self.generate_feature_engineered_dataset_per_rtime(truncated_duration=rtime)
+            self.generate_feature_engineered_dataset_per_rtime_per_logcat_filter(truncated_duration=rtime)
 
-    def generate_feature_engineered_dataset_per_rtime(self, truncated_duration):
+        return self.fDataset
+
+    def generate_feature_engineered_dataset_per_rtime_per_logcat_filter(self, truncated_duration):
         """
         Method to generate the feature engineered dataset for all the classification tasks for a given filter-value and truncated-duration.
         
@@ -359,7 +453,7 @@ class feature_engineered_dataset:
             - truncated_duration: time to which you want to trim the time series (in s)
             
         Output:
-            Updates fDataset which is a parameter of the class.
+            Updates fDataset which is a parameter of the class. 
         """
         # Set the truncated duration in the args
         self.args.truncated_duration = truncated_duration
@@ -384,6 +478,7 @@ class feature_engineered_dataset:
                         ## Save the paths of the created dataset to fDataset
                         print(fpathList)
                         self.fDataset[self.logcat_filter_rtime_threshold][self.args.truncated_duration][clf_toi][rnBin][splitName] = fpathList
+        
 
 
     def create_channel_bins(self, dataloaderX, truncated_duration, clf_toi, rnBin, split_type):
@@ -450,28 +545,24 @@ class feature_engineered_dataset:
                     channel_bins[chn_idx].append(chn.numpy())
                     # print(f"****{channel_bins}")
 
-                # print("Sanity checks")
-                # print(iterx[0], channel_bins[0])
-                # print(iterx[14], channel_bins[14])
-
-                # if iter_idx == 1:
-                #     sys.exit()
-
-            # ### Sanity checks (for one batch) ###
+                ########### Unit tests for the channel bins module ###########
+                # print(f"Channel bins creation verification (should be all true): {iterx[0] == torch.tensor(channel_bins[0][-1])}")
+                # print(f"Channel bins creation verification (should be all true): {iterx[14] == torch.tensor(channel_bins[14][-1])}")
+                
+                # # if iter_idx == 1:
+                # #     exit()
+                ##############################################################
+            ################## Unit tests for one batch ##################
             # print(f"Check if labels and batch_lables are same : {labels,batch_labels}")
             # # Check if binning of channels is correct
             # print(f"channel_bins : length (num_channels) - {len(channel_bins)} | length of each element channel_bins[i] (batch_size) - {len(channel_bins[0])} | length of channel[i][j] (feature_size) : {len(channel_bins[0][0])}")
-            
             # if batch_idx==2:
-            #     sys.exit()
+            #     exit()
+            ##############################################################
 
         # Convert to numpy array
         channel_bins = np.array(channel_bins)
         labels = np.array(labels)
-
-        # print(f"*************** Results path : {split_type} *************** ")
-        # print(f"*************** Shape of channel_bins (N_ch, N_samples, feature_size) and corresponding labels (N_samples) : {channel_bins.shape, labels.shape} *************** ")
-        # sys.exit()
 
         ############################################# Saving the files #############################################
         # Generate the paths for saving the files
@@ -479,6 +570,9 @@ class feature_engineered_dataset:
         if not os.path.isdir(saveDir):
             os.makedirs(saveDir)
 
+        print(f"*************** Results path : {saveDir} *************** ")
+        print(f" - Shape of channel_bins (N_ch, N_samples, feature_size) and corresponding labels (N_samples) : {channel_bins.shape, labels.shape} ")
+        
         # Paths where files needs to be saved
         channel_bins_path = os.path.join(saveDir, f'channel_bins_{split_type}.npy')
         labels_path = os.path.join(saveDir, f'labels_{split_type}.npy')
@@ -498,6 +592,79 @@ class feature_engineered_dataset:
 
         return [channel_bins_path, labels_path, filePath_path]
 
+class train_classifiers:
+    """
+    Class contains all the methods for training the GLOBL and the HPC base classifiers, and the second stage MLP model.
+    """
+
+    def __init__(self) -> None:
+        # channel_names : [ ... ]
+        pass
+
+    def generate_all_base_classifier():
+        """
+        Generates base classifiers (DVFS and HPC) for all logcat_rtime_thresholds and truncated_durations.
+        """
+        # For each logcat_rtime_threshold
+        #       For each truncated duration
+        #           Fetch the training channel channel bins
+        #           train and tune the models using the training channel bins
+        #           save the model 
+        pass
+
+    def generate_all_stage2_classifier():
+        """
+        Generates the MLP model for all logcat_rtime_thresholds and truncated_durations.
+        """
+        # For each logcat_rtime_threshold
+        #       For each truncated duration
+        #           Fetch the trainingSG channel channel bins
+        #           train MLP
+        
+        pass    
+    def train_MLP(self, training_dataset, training_labels):
+        """
+        Trains the MLP model
+        """
+        #      generate_stage1_decisions_GLOBL() and generate_stage1_decisions_HPC()
+        #      Train the MLP 
+        pass
+
+    def train_base_classifiers_GLOBL(self, training_dataset, training_labels):
+        """
+        Trains the GLOBL base classifiers for all the channels.
+        """
+        # Train and tune the model. 
+        # Save the model.
+        pass
+
+    def train_base_classifiers_HPC(self, training_dataset, training_labels):
+        """
+        Trains the HPC base classifiers for all the HPC groups.
+        """
+        # Train and tune the model. 
+        # Save the model.
+        pass
+
+    def generate_stage1_decisions_GLOBL(self, globl_base_classifiers, classifier_input, labels):
+        """
+        Generates stage 1 decisions from the GLOBL base classifiers
+        """
+        # Loads the saved models
+        # Calculate stage 1 decisions
+        # Calculate the f1 score using the labels [if required]
+        pass
+
+    def generate_stage1_decisions_HPC(self, hpc_base_classifiers, classifier_input, labels):
+        """
+        Generates stage 1 decisions from the HPC base classifiers
+        """
+        # Loads the saved models
+        # Calculate stage 1 decisions
+        # Calculate the f1 score using the labels [if required]
+        pass
+    
+
 def main_worker(args, xmd_base_folder_location):
     """
     Worker node that performs the complete analysis.
@@ -505,35 +672,9 @@ def main_worker(args, xmd_base_folder_location):
         - args: easydict storing the experimental parameters
         - xmd_base_folder_location: Location of base folder of xmd
     """
-    # Download the dataset if it has not been downloaded
-    if args.dataset_download_flag:
-        dataset_generator_instance = dataset_generator_downloader(filter_values= [args.runtime_per_file, args.num_logcat_lines_per_file, args.freq_logcat_event_per_file], 
-                                                                    dataset_type=args.dataset_type)
-        dataset_generator_instance.generate_dataset(download_file_flag=args.dataset_download_flag)
-    
-    # Get the dataset type and the partition dist for the dataset split generator
-    dsGen_dataset_type, dsGem_partition_dist = dataloader_generator.get_dataset_type_and_partition_dist(dataset_type = args.dataset_type)
-    # dsGen_dataset_type, dsGem_partition_dist = dataloader_generator.get_dataset_type_and_partition_dist(dataset_type = 'bench-dataset')
+    feature_engineered_dataset.generate_feature_engineered_dataset(args, xmd_base_folder_location)
 
-    # Get the dataset base location
-    dataset_base_location = os.path.join(args.dataset_base_location, args.dataset_type)
 
-    # Generate the dataset splits (partition dict and the labels dict)
-    dsGen = dataset_split_generator(seed=args.seed, 
-                                    partition_dist=dsGem_partition_dist, 
-                                    datasplit_dataset_type=dsGen_dataset_type)
-    all_datasets = dsGen.create_all_datasets(base_location=dataset_base_location)
-
-    ################################################## Generate feature engineered dataset ##################################################
-    featEngDatsetBasePath = os.path.join(xmd_base_folder_location,"data","featureEngineeredDataset")
-    fDataset={}
-    featEngineeringDriver = feature_engineered_dataset(args=args, 
-                                                all_dataset_partitionDict_label = all_datasets, 
-                                                dataset_type = dsGen_dataset_type, 
-                                                results_path = featEngDatsetBasePath,
-                                                fDataset=fDataset)
-    featEngineeringDriver.generate_feature_engineered_dataset()
-    #########################################################################################################################################
 
 def main():
     ############################################## Setting up the experimental parameters ##############################################
