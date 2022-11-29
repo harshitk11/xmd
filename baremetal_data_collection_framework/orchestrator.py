@@ -400,6 +400,8 @@ def extract_partition_checksum(flag_before_malware):
 	Output:
 		Updates the partition_details dict.
 	"""
+	global partition_details
+	
 	print("******************************** EXTRACTING PARTITION CHECKSUMS ********************************")
 	for key,value in partition_details.items():
 		partition = value[0]

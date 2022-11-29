@@ -15,6 +15,7 @@ results/
 
 # Ignore the pycache file
 src/__pycache__
+src/test.py
 
 
 # Ignore the supporter files for downloading apks from androzoo
