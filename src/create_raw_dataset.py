@@ -2,43 +2,27 @@
 Python script to create the dataset containing the raw GLOBL and HPC files.
 '''
 
-from cProfile import label
-from cgi import test
-from matplotlib.style import available
 import torch
 import contextlib
 import time
-import csv
 import random
 import os
 from os import listdir, mkdir
 from os.path import isfile, join, isdir
 import math
-import sys
-import shutil
 import json
-from torch._C import Value
-from torch.nn.functional import pad
 import torch.utils.data as data_utils
-from collections import Counter
 import numpy as np
-from scipy.sparse import base, csr_matrix 
 import matplotlib.pyplot as plt
 import dropbox
 import re
 import torchaudio
-import logging
 import numpy as np
 from sklearn.decomposition import PCA
-import itertools
-import pandas as pd
 import pickle
-from glob import glob
-import shutil
 import traceback
 from multiprocessing import Pool, Process
 import warnings
-# warnings.filterwarnings("ignore")
 
 BENIGN_LABEL = 0
 MALWARE_LABEL = 1
@@ -1280,16 +1264,17 @@ class dataset_generator_downloader:
         
         # If the black list already exists, then it will load the previous black list. To generate the new blacklist, delete
         # the not_malware_hashlist at "xmd/res/virustotal"
-        self.std_dataset_malware_blklst = self.get_black_list_from_vt_report(vt_malware_report_path)
+        self.std_dataset_malware_blklst = self.get_black_list_from_vt_report(vt_malware_report_path, vtThreshold=2)
         ###########################################################################################################################
 
-    def get_black_list_from_vt_report(self, vt_malware_report_path):
+    def get_black_list_from_vt_report(self, vt_malware_report_path, vtThreshold):
         """
-        Just for the std-dataset: Gets the list of malware apks with 0 or 1 vt positives. We will not process the logs 
+        Get the list of malware apks with less than vtThreshold vt-positives. We will not process the logs 
         from these apks as malware.
 
         params:
             - vt_malware_report_path : Path of the virustotal report of the malware
+            - vtThreshold : Threshold of detections below which we discard the malware sample
          
         Output:
             - not_malware : List of hashes of apks with 0 or 1 vt positive
@@ -1319,8 +1304,9 @@ class dataset_generator_downloader:
                                     'percentage_positive':round((float(hash_details['results']['positives'])/float(hash_details['results']['total']))*100,2),
                                     'associated_malware_families':[avengine_report['result'] for _,avengine_report in hash_details['results']['scans'].items() if avengine_report['result']]}
             
-            # Identify the malware apks with 0 or 1 vt_positives
-            if int(hash_details['results']['positives']) == 0 or int(hash_details['results']['positives']) == 1 :
+            # Identify the malware apks with less than vtThreshold vt_positives
+            if int(hash_details['results']['positives']) < vtThreshold:
+                print(f" - Adding {hash} to the not malware list.")
                 not_malware.append(hash)
 
         # Save the not_malware list as a pickled file
@@ -1691,13 +1677,13 @@ class dataset_generator_downloader:
 
 def main():
     # # STD-Dataset
-    # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="std-dataset")
+    dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="std-dataset")
     # # CD-Dataset
-    dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="cd-dataset")
+    # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="cd-dataset")
     # # Bench-Dataset
     # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="bench-dataset")
     
-    dataset_generator_instance.generate_dataset(download_file_flag=True, num_download_threads=30)
+    # dataset_generator_instance.generate_dataset(download_file_flag=True, num_download_threads=30)
     # print(dataset_generator_instance.count_number_of_apks())
     # exit()
 
@@ -1707,7 +1693,7 @@ def main():
     # x.create_all_datasets(base_location=test_path)
     # exit()
     # ###################################################################################
-    pass
+    
     
     
 if __name__ == '__main__':

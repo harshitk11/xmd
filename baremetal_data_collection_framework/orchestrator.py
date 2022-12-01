@@ -403,8 +403,8 @@ def extract_partition_checksum(flag_before_malware):
 	global partition_details
 	
 	print("******************************** EXTRACTING PARTITION CHECKSUMS ********************************")
-	for key,value in partition_details.items():
-		partition = value[0]
+	for key,_ in partition_details.copy().items():
+		partition = partition_details[key][0]
 		command = "adb shell \"su -c \'sha256sum "+ partition +"\'\""
 
 		get_hash_raw = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE).stdout
@@ -420,11 +420,11 @@ def extract_partition_checksum(flag_before_malware):
 
 			# If flag_before_malware is 1, then the checksum is the checksum before infection has happened [store the check sum in checksum-before-malware]
 			if flag_before_malware:
-				value[1] = hash_str
+				partition_details[key][1] = hash_str
 			
 			# If flag_before_malware is 0, then the checksum is the checksum after the malware has been installed and ran [store the checksum in checksum-after-malware]
 			else:
-				value[2] = hash_str 	
+				partition_details[key][2] = hash_str 	
 		else:
 			sys.exit("Hash cannot be extracted")
 

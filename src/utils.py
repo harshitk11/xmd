@@ -244,7 +244,7 @@ class malware_label_generator:
                 report_dict = json.load(fp)
 
         # VT api key
-        API_KEY = '923484b3eda16aa049893c79daa4400feed119bb33e93386d39bd889b18d1713'
+        API_KEY = '24e16060310e84f88d071e79d4050b4021acf677480609993cc368a5879bb0ce'
 
         #Instantiate the VT API   
         vt = VirusTotalPublicApi(API_KEY)

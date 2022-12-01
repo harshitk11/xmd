@@ -4,7 +4,6 @@ for different experimental parameters (e.g., logcat_runtime_threshold, truncated
 """
 import argparse
 import datetime
-import stat
 import torch
 from utils import Config
 from create_raw_dataset import dataset_generator_downloader, dataset_split_generator, custom_collator, get_dataloader
@@ -12,9 +11,7 @@ import os
 import shutil
 import numpy as np
 import pickle
-import collections
 import json
-from sklearn.model_selection import train_test_split
 
 # Used for storing the latest list of local paths of files that should be downloaded for creating the dataset.
 timeStampCandidateLocalPathDict = None
@@ -401,7 +398,7 @@ class feature_engineered_dataset:
 
 
     @staticmethod
-    def generate_feature_engineered_dataset(args, xmd_base_folder_location):
+    def generate_feature_engineered_dataset(args, xmd_base_folder_location, featEngineerDatasetFolderName):
         """
         Function to generate the feature engineered dataset by doing a sweep over the two parameters: logcat-runtime_per_file, truncated_duration 
         A new dataset is created for each tuple (logcat-runtime_per_file, truncated_duration).
@@ -418,6 +415,7 @@ class feature_engineered_dataset:
         params:
             - args : Uses args.collected_duration to calculate the list of logcat runtime thresholds
             - xmd_base_folder_location: Base folder of xmd's source code
+            - featEngineerDatasetFolderName: Name of the base folder for storing the feature engineered dataset.
         """
         if not os.path.isdir(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails")):
             os.mkdir(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails"))
@@ -467,7 +465,7 @@ class feature_engineered_dataset:
             all_datasets = dsGen.create_all_datasets(base_location=dataset_base_location)
 
             ################################################## Generate feature engineered dataset for all truncated durations ##################################################
-            featEngDatsetBasePath = os.path.join(xmd_base_folder_location,"data","featureEngineeredDataset1",args.dataset_type)
+            featEngDatsetBasePath = os.path.join(xmd_base_folder_location,"data",featEngineerDatasetFolderName,args.dataset_type)
             featEngineeringDriver = feature_engineered_dataset(args=args, 
                                                         all_dataset_partitionDict_label = all_datasets, 
                                                         dataset_type = dsGen_dataset_type, 
@@ -642,186 +640,6 @@ class feature_engineered_dataset:
 
         return [channel_bins_path, labels_path, filePath_path]
 
-class train_classifiers:
-    """
-    Class contains all the methods for training the GLOBL and the HPC base classifiers.
-    """
-
-    def __init__(self, args, xmd_base_folder_location) -> None:
-        # Channel names [in the same order as present in the dataset]
-        self.globl_channel_names = ['gpu_load','cpu_freq_lower_cluster','cpu_freq_higher_cluster', 'cpu_bw', 'gpu_bw',
-                    'kgsl-busmon','l3-cpu0', 'l3-cpu4', 'llccbw', 'memlat_cpu0',
-                    'memlat_cpu4', 'rx_bytes', 'tx_bytes', 'current_now', 'voltage_now']
-        self.args = args
-        self.xmd_base_folder_location = xmd_base_folder_location        
-        
-        # Generate the list of candidate logcat threshold runtimes
-        self.logcat_rtimeThreshold_list = [i for i in range(0, args.collected_duration, args.step_size_logcat_runtimeThreshold)]
-
-        # Generate the list of truncated durations
-        self.truncatedRtimeList = [i for i in range(args.step_size_truncated_duration, args.collected_duration+args.step_size_truncated_duration, args.step_size_truncated_duration)]
-
-        # Read the json that stores the paths of all the feature engineered datasets
-        with open(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails","info.json")) as fp:
-            self.fDatasetAllDatasets = json.load(fp)
-
-        # Get the type of dataset [base classifiers are trained for std-dataset and bench-dataset]
-        self.dsGen_dataset_type, _ = dataloader_generator.get_dataset_type_and_partition_dist(dataset_type = args.dataset_type)
-        if (self.dsGen_dataset_type != "std-dataset") or (self.dsGen_dataset_type != "bench-dataset"):
-            raise ValueError("Incorrect dataset type specified for training the base classifiers")
-
-
-        
-
-    def generate_all_base_classifier(self):
-        """
-        Generates base classifiers (DVFS and HPC) for all logcat_rtime_thresholds and truncated_durations.
-        """        
-        for logcatRtime in self.logcat_rtimeThreshold_list:
-            for truncatedRtime in self.truncatedRtimeList:
-                # Train the GLOBL base classifiers
-                self.train_base_classifiers_GLOBL(logcatRtime=str(logcatRtime), truncatedRtime=str(truncatedRtime))
-                # Train the HPC base classifiers
-
-        
-        # For each logcat_rtime_threshold
-        #       For each truncated duration
-        #           Fetch the training channel channel bins
-        #           train and tune the models using the training channel bins
-        #           save the model 
-
-    # def trainAndTuneRandomForest(self, channel_bins_train, labels_train):
-    #     """
-    #     Trains and generates the ensemble of classifiers, with one classifier per channel. For GLOBL telemetry we have 15 channels. For HPC telemetry, we have one channel.
-    #     params : 
-    #         - channels_bins_train : Shape - (N_channels, N_samples, feature_size) - Dataset for training
-    #         - labels_train : Shape - (N_samples, 1) - Corresponding labels for training  
-    #         - epochs :  Number of epochs of training
-    #     """
-    #     # Stores the trained classifier for each channel 
-    #     channel_clf_list = []
-
-    #     # Get the number of channels
-    #     numChannels = channel_bins_train.shape[0]
-
-    #     # Train random forest model for each channel
-    #     for chn_indx in range(numChannels): 
-    #         print(f"*************** Training model for channel number : {chn_indx} *************** ")
-
-    #         # Training dataset for this channel
-    #         X_train = channel_bins_train[chn_indx] 
-            
-            
-    #         '''Training and Validation'''
-    #         val_accuracy_list = [] # Stores the list of validation scores over all the epochs [Used for selecting the best model]
-    #         best_chn_model = None # Stores the best model for this channel
-
-    #         for _ in range(epochs):
-    #             model,val_accuracy  = base_random_forest(channel_bins_train[chn_indx],labels_train,channel_bins_val[chn_indx],labels_val,n_estimators=100)
-    #             val_accuracy_list.append(val_accuracy)
-
-    #             # Save the best model based on accuracy
-    #             if val_accuracy >= max(val_accuracy_list):
-    #                 print(f"-------------- New best model found with accuracy : {val_accuracy} -------------- ")
-    #                 best_chn_model = model
-
-
-    #         '''Add the best model to the list of ensemble'''
-    #         if best_chn_model is None:
-    #             raise ValueError('Expected a model. Found None.')
-    #         channel_clf_list.append(best_chn_model)
-
-    #     if not os.path.isdir(os.path.join(results_path,'models')):
-    #         os.makedirs(os.path.join(results_path,'models'))
-
-    #     # Check if channel_bins_train has only one channel [that means that this is hpc dataset for a given rn]
-    #     # We use a different naming convention for hpc individual classifiers
-    #     if channel_bins_train.shape[0] == 1:
-    #         # Write the channel_clf_list into a pickle file [so that you don't have to train the model every time]
-    #         with open(os.path.join(results_path,'models',f'channel_models_{channels_of_interest[0]}'), 'wb') as fp:
-    #             pickle.dump(channel_clf_list, fp)
-
-    #     else:
-    #         # Write the channel_clf_list into a pickle file [so that you don't have to train the model every time]
-    #         with open(os.path.join(results_path,'models','channel_models'), 'wb') as fp:
-    #             pickle.dump(channel_clf_list, fp)
-
-    #     return channel_clf_list
-
-
-    def train_base_classifiers_GLOBL(self, logcatRtime, truncatedRtime):
-        """
-        Trains the GLOBL base classifiers for all the channels.
-
-        params:
-            - logcatRtime, truncatedRtime, self.dsGen_dataset_type: Used for fetching the training dataset 
-        """
-        
-        ####################################################### Fetch the training datasets ####################################################### 
-        channel_bins_path, labels_path, fPath_path = self.fDatasetAllDatasets[self.args.dataset_type][logcatRtime][truncatedRtime]["DVFS_individual"]["all"]["train"]
-        
-        # Fetch the training dataset 
-        channel_bins_train = np.load(channel_bins_path)
-        labels_train = np.load(labels_path)
-        with open (fPath_path, 'rb') as fp:
-            f_paths_train = np.array(pickle.load(fp), dtype="object")
-
-        # Info about the dataset
-        print(f"Shape of train channel bins (N_ch, N_samples, feature_size) and labels (N_samples,) : {channel_bins_train.shape, labels_train.shape}")
-        print(f"Num Malware and Benign: {np.unique(labels_train, return_counts = True)}")
-        ############################################################################################################################################
-
-        ####################################################### Train and tune the model ###########################################################
-        channel_clf_list = self.trainAndTuneRandomForest(channel_bins_train = channel_bins_train, labels_train = labels_train)
-        ############################################################################################################################################ 
-        # Save the model
-
-    def train_base_classifiers_HPC(self, logcatRtime, truncatedRtime):
-        """
-        Trains the HPC base classifiers for all the HPC groups.
-        """
-        # Fetch the training dataset.
-        # Train and tune the model. 
-        # Save the model.
-        pass
-
-    def generate_stage1_decisions_GLOBL(self, globl_base_classifiers, classifier_input, labels):
-        """
-        Generates stage 1 decisions from the GLOBL base classifiers
-        """
-        # Loads the saved models
-        # Calculate stage 1 decisions
-        # Calculate the f1 score using the labels [if required]
-        pass
-
-    def generate_stage1_decisions_HPC(self, hpc_base_classifiers, classifier_input, labels):
-        """
-        Generates stage 1 decisions from the HPC base classifiers
-        """
-        # Loads the saved models
-        # Calculate stage 1 decisions
-        # Calculate the f1 score using the labels [if required]
-        pass
-
-    def generate_all_stage2_classifier():
-        """
-        Generates the MLP model for all logcat_rtime_thresholds and truncated_durations.
-        """
-        # For each logcat_rtime_threshold
-        #       For each truncated duration
-        #           Fetch the trainingSG channel channel bins
-        #           train MLP
-        
-        pass    
-    def train_MLP(self, training_dataset, training_labels):
-        """
-        Trains the MLP model
-        """
-        #      generate_stage1_decisions_GLOBL() and generate_stage1_decisions_HPC()
-        #      Train the MLP 
-        pass
-
-    
 
 def main_worker(args, xmd_base_folder_location):
     """
@@ -831,11 +649,8 @@ def main_worker(args, xmd_base_folder_location):
         - xmd_base_folder_location: Location of base folder of xmd
     """
     # Generate the feature engineered dataset for all logcat runtime thresholds and truncated durations for this dataset.
-    feature_engineered_dataset.generate_feature_engineered_dataset(args, xmd_base_folder_location)
+    feature_engineered_dataset.generate_feature_engineered_dataset(args, xmd_base_folder_location, featEngineerDatasetFolderName="featureEngineeredDataset1")
 
-    # # Train the HPC and the GLOBL base classifiers
-    # training_inst = train_classifiers(args=args, xmd_base_folder_location=xmd_base_folder_location)
-    # training_inst.generate_all_base_classifier()
 
 def main():
     ############################################## Setting up the experimental parameters ##############################################
@@ -857,8 +672,6 @@ def main():
         cfg.export_config(os.path.join(args.run_dir, 'final_config.yaml'))
     ####################################################################################################################################
 
-    # Duration of the time series that will be used
-    # args.truncated_duration = 20
     # Start the analysis
     main_worker(args=args, xmd_base_folder_location= base_folder_location)
 

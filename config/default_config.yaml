@@ -1,4 +1,4 @@
-# Config parameters for generating the feature engineered dataset from the raw dataset.
+#***************************************************** Config parameters for generating the feature engineered dataset from the raw dataset *****************************************************#
 
 ############################################ Parameters for downloading the dataset ############################################
 step_size_logcat_runtimeThreshold: 5                  # Step size for incrementing the logcat runtime threshold before downloading the dataset
@@ -7,7 +7,7 @@ runtime_per_file: 15                                  # Runtime measured by the 
 num_logcat_lines_per_file: 50                         # Number of logcat events in the logcat file 
 freq_logcat_event_per_file: 2                         # Average frequency of the logcat events i.e. number of logcat events per second
 
-dataset_type: 'cd-dataset'                            # Dataset type (Can take one of the following values: {'std-dataset', 'bench-dataset', 'cdyear1-dataset', 'cdyear2-dataset', 'cdyear3-dataset'})
+dataset_type: 'std-dataset'                            # Dataset type (Can take one of the following values: {'std-dataset', 'bench-dataset', 'cdyear1-dataset', 'cdyear2-dataset', 'cdyear3-dataset'})
 dataset_download_flag: True                           # Flag that decides whether or not to download the dataset from Dropbox
 num_download_threads: 30                              # Number of files you want to simultaneuously download
 ################################################################################################################################
@@ -53,4 +53,7 @@ resample: True                                        # Flag to determine whethe
 num_histogram_bins: 32                                    # HPC time series is divided into histogram bins. This parameter defines the number of histogram bins.
 ################################################################################################################################
 
-# Config parameters for training, tuning, and evaluating the ML classifiers.
+#********************************************************** Config parameters for training, tuning, and evaluating the ML classifiers ***********************************************************#
+num_cv: 2                                            # Number of cross-validation folds for model tuning
+num_comb_model_tuning: 10                            # Number of different hyperparameter combinations to try for model tuning
+n_jobs: 30                                            # Number of parallel jobs to run for hyperparameter tuning
