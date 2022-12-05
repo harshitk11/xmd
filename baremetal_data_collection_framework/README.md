@@ -24,9 +24,6 @@ Therefore, we use the VT scan-date option, which provides the "First Submission"
 ## Data-Collection Architecture
 The data collection architecture consists of three main components: the interaction module, the data-collection module, and the orchestrator module. The interaction module interacts with the application while it executes. The data-collection module collects the data logs in the background while the application is executing in the foreground. The orchestrator is responsible for synchronizing sub-tasks. ![Figure](/baremetal_data_collection_framework/data-collection-flowchart-cropped.pdf) summarizes the overall flow of profiling and collecting the hardware telemetry logs for a single iteration of data collection.
 
-<embed src="https://github.com/harshitk11/xmd/blob/master/baremetal_data_collection_framework/data-collection-flowchart-cropped.pdf" width="500" height="375" 
- type="application/pdf">
-
 ### Orchestrator Module
 - `orchestrator.py`: Python script that executes on the Host. It is responsible for invocating and synchronizing the execution of the apks, the Data-Collection module, and the Interaction module. The orchestrator also performs the checksum extraction to verify the integrity of the userdata and system partitions and pushes the collected data logs to the cloud.
 ### Data-Collection Module
