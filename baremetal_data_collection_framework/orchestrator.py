@@ -426,7 +426,8 @@ def extract_partition_checksum(flag_before_malware):
 			else:
 				partition_details[key][2] = hash_str 	
 		else:
-			sys.exit("Hash cannot be extracted")
+			print(key, hash_raw_string)
+			print("Hash cannot be extracted")
 
 
 def check_partition_modification():
