@@ -180,25 +180,30 @@ class logcat_parser:
         params: 
             - tstamp_list: List of timestamps
         """
-        # You need to have atleast 2 timestamps in the list to get the time difference
-        if (len(tstamp_list) > 1): 
-            time_format = '%H:%M:%S.%f'
+        try:
+            # You need to have atleast 2 timestamps in the list to get the time difference
+            if (len(tstamp_list) > 1): 
+                time_format = '%H:%M:%S.%f'
+                
+                # Calculate the time difference between successive events and store the difference in a list
+                time_dif_list = [(datetime.strptime(tstamp_list[i], time_format)-datetime.strptime(tstamp_list[i-1], time_format)).total_seconds() for i in range(1, len(tstamp_list))]
+
+                # Time difference between successive events can be negative sometimes [logcat issue], so we take mod before averaging
+                time_dif_list = [abs(dif) for dif in time_dif_list]
+
+                # Get the mean of the time difference 
+                mean_time_dif = statistics.mean(time_dif_list)
+
+                # Inverse of the time difference gives average frequency
+                avg_freq = 1/mean_time_dif
+
+            else: 
+                avg_freq = 0
+        
+        except:
+            # Error happens when mean of the time difference is 0
+            avg_freq=0
             
-            # Calculate the time difference between successive events and store the difference in a list
-            time_dif_list = [(datetime.strptime(tstamp_list[i], time_format)-datetime.strptime(tstamp_list[i-1], time_format)).total_seconds() for i in range(1, len(tstamp_list))]
-
-            # Time difference between successive events can be negative sometimes [logcat issue], so we take mod before averaging
-            time_dif_list = [abs(dif) for dif in time_dif_list]
-
-            # Get the mean of the time difference 
-            mean_time_dif = statistics.mean(time_dif_list)
-
-            # Inverse of the time difference gives average frequency
-            avg_freq = 1/mean_time_dif
-
-        else: 
-            avg_freq = 0
-
         return avg_freq
 
 class malware_label_generator:
@@ -244,7 +249,7 @@ class malware_label_generator:
                 report_dict = json.load(fp)
 
         # VT api key
-        API_KEY = '24e16060310e84f88d071e79d4050b4021acf677480609993cc368a5879bb0ce'
+        API_KEY = 'bc49bca0c45ee170c3353cc5aefcabdb2decdb3d5f37dbd6ea32ea9fa9275b78'
 
         #Instantiate the VT API   
         vt = VirusTotalPublicApi(API_KEY)

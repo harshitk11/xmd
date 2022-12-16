@@ -353,7 +353,8 @@ class feature_engineered_dataset:
         """
         global timeStampCandidateLocalPathDict
         dataset_generator_instance = dataset_generator_downloader(filter_values= [args.runtime_per_file, args.num_logcat_lines_per_file, args.freq_logcat_event_per_file], 
-                                                                        dataset_type=args.dataset_type)
+                                                                        dataset_type=args.dataset_type,
+                                                                        base_download_dir=args.dataset_base_location)
             
         # If the dataset is not downloaded, then download the dataset
         if not os.path.isdir(os.path.join(xmd_base_folder_location, "data", args.dataset_type)):

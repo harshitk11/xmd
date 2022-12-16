@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import pandas as pd
-
+import requests
 
 def list_folder_extension(dbx, res, rv):
     """
@@ -59,7 +59,7 @@ def list_folder(dbx, folder, subfolder):
     try:
         with stopwatch('list_folder'):
             res = dbx.files_list_folder(path)
-    except dropbox.exceptions.ApiError as err:
+    except (dropbox.exceptions.ApiError,requests.exceptions.ConnectionError) as err:
         print('Folder listing failed for', path, '-- assumed empty:', err)
         return {} # Return empty dict if the folder is empty
     else:
@@ -131,9 +131,10 @@ def generate_json_apk_vs_logcat(dbx, ls_root, dbx_path, load_flag, f_save_base_f
     Output:
         - logcat_folder_num_runs_dict : {key=apk_folder_path, value=#logcat_files}
     """ 
-    if load_flag: # Load the previously generated json
-        dbx_path_ = dbx_path.replace("/","")
-        file_loc = os.path.join(f_save_base_folder, f"{dbx_path_}.json")
+    dbx_path_ = dbx_path.replace("/","")
+    file_loc = os.path.join(f_save_base_folder, f"{dbx_path_}.json")
+    
+    if load_flag and os.path.isfile(file_loc): # Load the previously generated json
         with open(file_loc,"r") as fp:
             logcat_folder_num_runs_dict = json.load(fp)
 
@@ -184,8 +185,8 @@ def parse_logcat_files(dbx, dbx_path, dataset_type, benchmark_flag, f_save_base_
     params:
         - dbx : dropbox token
         - dbx_path : Dropbox path of the base folder
-        - dataset_type : Can take one of the following values : ['std_benign', 'std_malware', 'cd_benign', 
-                                                                'cd_malware', 'bench_benign']
+        - dataset_type (Used for naming the parser_info logs): Can take one of the following values : ['std_benign', 'std_malware', 'std_vt10_malware', 'cd_year1_benign', 
+                                                                'cd_year1_malware', 'cd_year2_benign', 'cd_year2_malware', 'cd_year3_benign', 'cd_year3_malware', 'bench_benign']
         - benchmark_flag : If benchmark flag = True, then we are dealing with benchmarks and we don't have to parse logcat files (since benchmarks always run to completion)
         - f_save_base_folder : Location of the base folder where the logs are loaded from and saved
 
@@ -307,7 +308,49 @@ def generate_parser_info(dbx, dbx_path, dataset_type, benchmark_flag, load_flag,
                         dataset_type=dataset_type, benchmark_flag=benchmark_flag, 
                         f_save_base_folder = base_folder_location)
 
-def create_parser_info_for_all_datasets(dbx, base_folder_location, load_flag):
+def create_parser_info_for_all_datasets_usenix_winter(dbx, base_folder_location, load_flag):
+    """
+    Creates parser_info files for all the datasets for the Winter submission.
+    params:
+        - dbx : dropbox token
+        - base_folder_location : location of the base folder where all the logs are stored
+        - load_flag : if 1, then will load the previous json containing the apk folder vs num logcat files
+    """
+    # Generating parser info for STD-dataset, CD_year1_dataset, CD_year2_dataset, CD_year3_dataset
+    ## NOTE : Make sure the folder name is preceeded by a backslash 
+    std_cd_dataset_info = {
+                # "std_malware":{"dbx_path":"/logs_std_malware", "app_type":"malware", "dtype":"std_malware"},
+                # "std_vt10_malware_dev2":{"dbx_path":"/logs_std_vt10_malware_dev2", "app_type":"malware", "dtype":"std_vt10_malware_dev2"},
+                # "std_benign":{"dbx_path":"/logs_std_benign", "app_type":"benign", "dtype":"std_benign"},
+                # "std_benign_dev2":{"dbx_path":"/logs_std_benign_dev2", "app_type":"benign", "dtype":"std_benign_dev2"},
+                
+                "cd_year1_malware":{"dbx_path":"/logs_cd_year1_malware", "app_type":"malware", "dtype":"cd_year1_malware"},
+                "cd_year1_benign":{"dbx_path":"/logs_cd_year1_benign", "app_type":"benign", "dtype":"cd_year1_benign"},
+                
+                "cd_year2_malware":{"dbx_path":"/logs_cd_year2_malware_dev2", "app_type":"malware", "dtype":"cd_year2_malware"},
+                "cd_year2_benign":{"dbx_path":"/logs_cd_year2_benign_dev2", "app_type":"benign", "dtype":"cd_year2_benign"},
+                
+                "cd_year3_malware":{"dbx_path":"/logs_cd_year3_malware", "app_type":"malware", "dtype":"cd_year3_malware"},
+                # "cd_year3_benign":{"dbx_path":"/logs_cd_year3_benign", "app_type":"benign", "dtype":"cd_year3_benign"}
+                }
+
+    for dtype, val in std_cd_dataset_info.items():
+        print(f"--------------------- Generating parser_info for {dtype} ---------------------")
+        generate_parser_info(dbx=dbx, dbx_path=val["dbx_path"], dataset_type=dtype, 
+                            benchmark_flag=False, load_flag = load_flag, base_folder_location = base_folder_location)
+
+    # Generating parser info for the BENCH-dataset
+    # Benchmark logs are divided over three different folders
+    bench_dataset_info={"bench1":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module",
+                "bench2":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part2",
+                "bench3":"/results_benchmark_benign_with_reboot_using_benchmark_collection_module_part3"}
+    
+    for dtype, dbx_path in bench_dataset_info.items():
+        print(f"--------------------- Generating parser_info for {dtype} ---------------------")
+        generate_parser_info(dbx=dbx, dbx_path=dbx_path, dataset_type=dtype, benchmark_flag=True, 
+                            load_flag=load_flag, base_folder_location = base_folder_location)
+
+def create_parser_info_for_all_datasets_usenix_summer(dbx, base_folder_location, load_flag):
     """
     Creates parser_info files for all the datasets.
     params:
@@ -462,7 +505,7 @@ def main():
     print('...authenticated with Dropbox owned by ' + dbx.users_get_current_account().name.display_name)
 
     # Location of the base folder where all the parser info logs will be stored and loaded from 
-    base_folder_location = os.path.join(dir_path.replace("/src",""),"res/parser_info_files")
+    base_folder_location = os.path.join(dir_path.replace("/src",""),"res/parser_info_files/winter")
     
     if not os.path.isdir(base_folder_location):
         os.system(f"mkdir -p {base_folder_location}")
@@ -496,17 +539,18 @@ def main():
     #     generate_parser_info(dbx=dbx, dbx_path=dbx_path, dataset_type=dtype, benchmark_flag=True, load_flag=0, base_folder_location=base_folder_location)
     # ############################################################################################################################################
 
-    # # Generating parser_info for all the datasets [STD, CD, and BENCH dataset]
-    # create_parser_info_for_all_datasets(dbx, base_folder_location=base_folder_location, load_flag=1)
+    # Generating parser_info for all the datasets [STD, CD, and BENCH dataset]
+    # create_parser_info_for_all_datasets_usenix_summer(dbx, base_folder_location=base_folder_location, load_flag=1)
+    create_parser_info_for_all_datasets_usenix_winter(dbx, base_folder_location=base_folder_location, load_flag=1)
     
-    ################################################### Analyze the parser_info dicts ############################################################
-    # Generate the runtime distribution plots
-    dataset_characterization = analyse_parser_info_dict(base_dir=dir_path)
-    dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_type = 'std', plot_flag=True)
-    dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_type = 'cd', plot_flag=True)
-    dataset_characterization.generate_runtime_distribution_plot_all_datasets(plot_flag=True)
+    # ################################################### Analyze the parser_info dicts ############################################################
+    # # Generate the runtime distribution plots
+    # dataset_characterization = analyse_parser_info_dict(base_dir=dir_path)
+    # dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_type = 'std', plot_flag=True)
+    # dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_type = 'cd', plot_flag=True)
+    # dataset_characterization.generate_runtime_distribution_plot_all_datasets(plot_flag=True)
 
-    ##############################################################################################################################################
+    # ##############################################################################################################################################
 
 
 if(__name__=="__main__"):

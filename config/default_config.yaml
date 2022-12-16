@@ -15,7 +15,7 @@ num_download_threads: 30                              # Number of files you want
 ######################################### Parameters for performing late-stage fusion ##########################################
 dataset_base_location: "/data/hkumar64/projects/arm-telemetry/xmd/data"            # Base location where all the datasets will be stored
 results_base_location: "/data/hkumar64/projects/arm-telemetry/xmd/results"         # Base location where all the result files will be stored
-create_runs_dir: True                                                             # If True, then will create a runs dir to track the experimental run
+create_runs_dir: False                                                             # If True, then will create a runs dir to track the experimental run
 seed: 10                                                                           # Random seed to be used for this experiment
 device: "cuda:1"
 ################################################################################################################################
@@ -54,6 +54,6 @@ num_histogram_bins: 32                                    # HPC time series is d
 ################################################################################################################################
 
 #********************************************************** Config parameters for training, tuning, and evaluating the ML classifiers ***********************************************************#
-num_cv: 2                                            # Number of cross-validation folds for model tuning
-num_comb_model_tuning: 10                            # Number of different hyperparameter combinations to try for model tuning
+num_cv: 4                                            # Number of cross-validation folds for model tuning
+num_comb_model_tuning: 5                            # Number of different hyperparameter combinations to try for model tuning
 n_jobs: 30                                            # Number of parallel jobs to run for hyperparameter tuning
