@@ -19,6 +19,12 @@ from sklearn.metrics import confusion_matrix
 from sklearn.ensemble import RandomForestClassifier
 from scipy.stats import mode
 import re
+from collections import Counter
+from imblearn.over_sampling import RandomOverSampler
+
+
+BENIGN_LABEL = 0
+MALWARE_LABEL = 1
 
 def get_args(xmd_base_folder):
     """
@@ -51,6 +57,163 @@ def get_args(xmd_base_folder):
 
     return cfg, args
 
+class resample_dataset:
+    """
+    Contains all the methods for resampling the datasets to achieve the desired malware percentage.
+    """
+
+    def __init__(self, malwarePercent) -> None:
+        # % of malware in the resampled dataset. The resampling is done by oversampling the benign class.
+        self.malwarePercent = malwarePercent
+    
+    def __call__(self, y):
+        """
+        Returns a dict containing the number of samples for the benign and the malware class
+        """
+        target_stats = Counter(y)
+        Bo = int((1-self.malwarePercent)*target_stats[MALWARE_LABEL]/self.malwarePercent)
+        Mo = target_stats[MALWARE_LABEL]
+        resampled_stats = {MALWARE_LABEL:Mo, BENIGN_LABEL:Bo}
+        return resampled_stats
+
+    def generate_sampling_indices(self, X, y):
+        """
+        Generates indices of the samples from the original dataset that are used in the new dataset.
+        params:
+            - X : (Nsamples, Nfeature)
+            - y : (Nsamples, )
+
+        Output:
+            - ros.sample_indices_ : Indices of the samples selected. ndarray of shape (n_new_samples,)
+        """
+        rmInst = resample_dataset(malwarePercent=self.malwarePercent)
+        if self.malwarePercent == 0.1:
+            ros = RandomOverSampler(random_state=42, sampling_strategy=rmInst)
+        elif self.malwarePercent == 0.5:
+            ros = RandomOverSampler(random_state=42, sampling_strategy='auto')
+        else:
+            raise ValueError(f"Expecting malwarePercent of 0.1 or 0.5. Got {self.malwarePercent}.")
+
+        _, _ = ros.fit_resample(X, y)
+        return ros.sample_indices_
+
+    def resampleBaseTensor(self, X, y):
+        """
+        Resamples the Globl/Hpc Tensor.
+        params:
+            - X: dataset (Nchannels, Nsamples, feature_size)
+            - y: labels (Nsamples,) 
+        Output:
+            - X_res, y_res : Resampled dataset
+        """
+        # Get the sampling indices
+        sampIndx = self.generate_sampling_indices(X[0], y)
+
+        # Resample the dataset
+        X_res = X[:,sampIndx,:]
+        y_res = y[sampIndx]
+
+        return X_res, y_res
+
+    def resampleHpcTensor(self, Xlist, yList):
+        """
+        Resamples the dataset for all the HPC groups.
+        
+        params:
+            - Xlist: [dataset_group1, dataset_group2, dataset_group3, dataset_group4] | dataset shape: (1, Nsamples, feature_size)
+            - yList: [labels_group1, labels_group2, labels_group3, labels_group4] | labels_shape: (Nsamples,)
+
+        Output:
+            - Xlist_res, yList_res : Resampled dataset
+        """
+        Xlist_res = []
+        yList_res = []
+
+        for grpIndx, _ in enumerate(Xlist):
+            X_res, y_res = self.resampleBaseTensor(X=Xlist[grpIndx], y=yList[grpIndx])
+            Xlist_res.append(X_res)
+            yList_res.append(y_res)
+
+        return Xlist_res, yList_res
+
+    def resampleFusionTensor(self, XtestGLOBL_HPC, YtestGLOBL_HPC):
+        """
+        Resamples the matched HPC and GLOBL tensor for the fusion tasks.
+        params:
+            - XtestGLOBL_HPC: {"globl":XtestGLOBL, "hpc":XtestHPC} | XtestGLOBL,XtestHPC = [matched_dataset_group1, matched_dataset_group2, matched_dataset_group3, matched_dataset_group4]
+            - YtestGLOBL_HPC: {"globl":YtestGLOBL, "hpc":YtestHPC} | YtestGLOBL,YtestHPC = [labels_group1, labels_group2, labels_group3, labels_group4]
+        
+        Output:
+            - XtestGLOBL_HPC_res, YtestGLOBL_HPC_res : Resampled dataset and labels
+        """
+        XtestGLOBL_HPC_res = {"globl":[], "hpc":[]}
+        YtestGLOBL_HPC_res = {"globl":[], "hpc":[]}
+
+        # For each HPC group
+        for grpIndx,(globlDatasetTensor,hpcDatasetTensor) in enumerate(zip(XtestGLOBL_HPC["globl"], XtestGLOBL_HPC["hpc"])):
+            # Create sampling indices
+            sampIndx = self.generate_sampling_indices(globlDatasetTensor[0], YtestGLOBL_HPC["globl"][grpIndx])
+
+            # Resample GLOBL and HPC using the sampling indices
+            globlDatasetTensor_res = globlDatasetTensor[:,sampIndx,:]
+            globlLabelTensor_res = YtestGLOBL_HPC["globl"][grpIndx][sampIndx]
+            hpcDatasetTensor_res = hpcDatasetTensor[:,sampIndx,:]
+            hpcLabelTensor_res = YtestGLOBL_HPC["hpc"][grpIndx][sampIndx]
+            
+            # Add it to the resampled dict
+            XtestGLOBL_HPC_res["globl"].append(globlDatasetTensor_res)
+            XtestGLOBL_HPC_res["hpc"].append(hpcDatasetTensor_res)
+            YtestGLOBL_HPC_res["globl"].append(globlLabelTensor_res)
+            YtestGLOBL_HPC_res["hpc"].append(hpcLabelTensor_res)
+
+        return XtestGLOBL_HPC_res, YtestGLOBL_HPC_res
+
+    @staticmethod
+    def unitTestResampler():
+        ########### Testing the individual GLOBL and HPC resampling ###########
+        # Load dataset
+        dfvs_X_train = np.load("/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/std-dataset/15/40/DVFS_individual/all/channel_bins_train.npy")
+        dfvs_Y_train = np.load("/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/std-dataset/15/40/DVFS_individual/all/labels_train.npy")
+        print(f"- Shape of the original dataset and labels array: {dfvs_X_train.shape, dfvs_Y_train.shape}")
+        print(f"- [Pre] Number of malware and benign samples : {Counter(dfvs_Y_train)}")
+        # Perform resampling
+        rmInst = resample_dataset(malwarePercent=0.5)
+        X_res, y_res = rmInst.resampleBaseTensor(X=dfvs_X_train, y=dfvs_Y_train)
+        print(f"- Shape of the resampled dataset and labels array: {X_res.shape, y_res.shape}")
+        print(f"- [Post] Number of malware and benign samples : {Counter(y_res)}")
+
+        ########### Testing the fusion GLOBL and HPC resampling ###########
+        # Loading the datasets for testing the fusion modules
+        hpc_x_test = []
+        hpc_y_test = []
+        globl_x_test = []
+        globl_y_test = []
+        for group in ["rn1","rn2","rn3","rn4"]:
+            hpc_x_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/HPC_partition_for_HPC_DVFS_fusion/{group}/channel_bins_test.npy"))
+            hpc_y_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/HPC_partition_for_HPC_DVFS_fusion/{group}/labels_test.npy"))
+            globl_x_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/DVFS_partition_for_HPC_DVFS_fusion/{group}/channel_bins_test.npy"))
+            globl_y_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/DVFS_partition_for_HPC_DVFS_fusion/{group}/labels_test.npy"))
+
+        XtestGLOBL_HPC= {"globl":globl_x_test, "hpc":hpc_x_test}
+        YtestGLOBL_HPC= {"globl":globl_y_test, "hpc":hpc_y_test}
+    
+        print(" [Pre] Details of HPC and globl matched data")
+        print(f" - Shape of the hpc data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(hpc_x_test,hpc_y_test)]}")
+        print(f" - Shape of the globl data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(globl_x_test,globl_y_test)]}")
+        print(" - [Pre] Number of malware and benign samples")
+        print([Counter(yxx) for yxx in YtestGLOBL_HPC["globl"]])
+        print([Counter(yxx) for yxx in YtestGLOBL_HPC["hpc"]])
+
+        # Perform resampling
+        XtestGLOBL_HPC_res, YtestGLOBL_HPC_res = rmInst.resampleFusionTensor(XtestGLOBL_HPC=XtestGLOBL_HPC, YtestGLOBL_HPC=YtestGLOBL_HPC)
+        print(" -------------------------------------------------------------------------------------------------")
+        print(" [Post] Details of HPC and globl matched data")
+        print(f" - Shape of the hpc data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(XtestGLOBL_HPC_res['hpc'],YtestGLOBL_HPC_res['hpc'])]}")
+        print(f" - Shape of the globl data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(XtestGLOBL_HPC_res['globl'],YtestGLOBL_HPC_res['globl'])]}")
+        print(" - [Post] Number of malware and benign samples")
+        print([Counter(yxx) for yxx in YtestGLOBL_HPC_res["globl"]])
+        print([Counter(yxx) for yxx in YtestGLOBL_HPC_res["hpc"]])
+
 
 class baseRFmodel:
     """
@@ -76,7 +239,7 @@ class baseRFmodel:
         # Stores the parameters of the best model
         self.bestModelParams = None
         ###############################################################################################
-
+    
     def train(self, Xtrain, Ytrain):
         """
         Trains the Random Forest model. Tunes the trained model if modelTuneFlag is passed.
@@ -135,9 +298,9 @@ class baseRFmodel:
                                                    y_pred= predict_labels, 
                                                    output_dict=True)
 
-            test_performance_metric = {'f1': class_results['weighted avg']['f1-score'],
-                                        'precision': class_results['weighted avg']['precision'],
-                                        'recall': class_results['weighted avg']['recall']}
+            test_performance_metric = {'f1': class_results['macro avg']['f1-score'],
+                                        'precision': class_results['macro avg']['precision'],
+                                        'recall': class_results['macro avg']['recall']}
 
             if print_performance_metric:
                 # Print the classification report and the confusion matrix
@@ -251,17 +414,17 @@ class late_stage_fusion:
     Object for tracking the stage-1 and stage-2 predictive performance.
     """
     globlChannelNameList = ['gpu_load','cpu_freq_lower_cluster','cpu_freq_higher_cluster', 'cpu_bw', 'gpu_bw',
-                    'kgsl-busmon','l3-cpu0', 'l3-cpu4', 'llccbw', 'memlat_cpu0',
-                    'memlat_cpu4', 'rx_bytes', 'tx_bytes', 'current_now', 'voltage_now']
-    
+                            'kgsl-busmon','l3-cpu0', 'l3-cpu4', 'llccbw', 'memlat_cpu0',
+                            'memlat_cpu4', 'rx_bytes', 'tx_bytes', 'current_now', 'voltage_now']
+            
     hpcGroupNameList = ["hpc-group-1", "hpc-group-2", "hpc-group-3", "hpc-group-4"]
 
     def __init__(self, args) -> None:
         self.args = args
         
-        # Stores a dict of baseRFmodel objects. One for every globl channel.
+        # Stores a dict of baseRFmodel objects. One for every globl channel. {chnName: baseRFModel object, ...}
         self.globlChannelBaseClf = None
-        # Stores a dict of baseRFmodel objects. One for every hpc group.
+        # Stores a dict of baseRFmodel objects. One for every hpc group. {grpName: baseRFModel object, ...}
         self.hpcGroupBaseClf = None
         # Stage 2 MLP model for fusion
         self.stage2mlp = None
@@ -271,7 +434,7 @@ class late_stage_fusion:
         self.hpcGloblTestFileHashlist = {groupName:None for groupName in late_stage_fusion.hpcGroupNameList}
 
         # List of performance metrics for all the base classifiers of GLOBL channels and HPC groups
-        self.stage1ClassifierPerformanceMetrics = {chnName: None for chnName in (late_stage_fusion.globlChannelNameList+late_stage_fusion.hpcGroupNameList)}
+        self.stage1ClassifierPerformanceMetrics = {chnGrpName: None for chnGrpName in (late_stage_fusion.globlChannelNameList+late_stage_fusion.hpcGroupNameList)}
         
         # Performance metric for globl fusion models ("dvfs" created with channels 1-11, "globl" created with channels 1-15)
         self.globlFusionPerformanceMetric = {"dvfs":None, "globl":None}
@@ -292,6 +455,7 @@ class late_stage_fusion:
             
         Output:
             - Populates the self.globlChannelBaseClf
+            - Updates the self.stage1ClassifierPerformanceMetrics if the flag is passed
         """
         # Dict of baseRFmodel objects
         modelDict = {}
@@ -322,6 +486,7 @@ class late_stage_fusion:
                 
             Output:
                 - Populates the self.hpcGroupBaseClf
+                - Updates the self.stage1ClassifierPerformanceMetrics if the flag is passed
             """
             # Dict of baseRFmodel objects
             modelDict = {}
@@ -439,15 +604,15 @@ class late_stage_fusion:
         allGLOBL_predict_labels = []
         for trainDataset, trainLabels in zip(XtestGLOBL_HPC["globl"], YtestGLOBL_HPC["globl"]):
             allGLOBL_predict_labels.append(self.stage1evalGLOBL(XtestGLOBL = trainDataset, 
-                                                            YtestGLOBL = trainLabels, 
-                                                            updateObjectPerformanceMetrics = False,
-                                                            print_performance_metric=False))   
+                                                                YtestGLOBL = trainLabels, 
+                                                                updateObjectPerformanceMetrics = False,
+                                                                print_performance_metric=False))   
 
         # Get stage-1 predictions of the hpc base-classifiers for each matched dataset. 
         allHPC_predict_labels = self.stage1evalHPC(XtestHPC = XtestGLOBL_HPC["hpc"], 
-                             YtestHPC = YtestGLOBL_HPC["hpc"], 
-                             updateObjectPerformanceMetrics = False,
-                             print_performance_metric=False)
+                                                    YtestHPC = YtestGLOBL_HPC["hpc"], 
+                                                    updateObjectPerformanceMetrics = False,
+                                                    print_performance_metric=False)
 
         # Merge the HPC and globl predictions for each of the matched dataset
         for groupIndex,(globlPredictionGroup, hpcPredictionGroup) in enumerate(zip(allGLOBL_predict_labels,allHPC_predict_labels)):
@@ -460,45 +625,14 @@ class late_stage_fusion:
         
         return XtrainSG
 
-    def stage2_hpcGlobl_ensemble_eval(self, XtrainSG, globlChannelsOfInterest, print_performance_metric):
+    def ensemble_eval_using_majority_vote(self, stage1Decisions, Ytrue, print_performance_metric):
         """
-        Generates the evaluation scores for each of the four hpc-globl-groups.
-        
-        params:        
-            - XtrainSG: {"hpc-group-1":{"Xtrain":dataset, "Ytrain":labels}, ...}
-                                        dataset shape - (Nsample, Nchannel+1) -> Includes both globl and hpc channels
-                                        label shape - (Nsample, 1)
-
-            - globlChannelsOfInterest: List of globl channels "index" that we are interested in adding to the ensemble   
-            - print_performance_metric: If True, then will print the performance metrics to stdout
-
-        Output:
-            - final_ensemble_decision: combined decision using majority voting (Nsamples,)
-            - test_performance_metric: Contains the performance metrics (f1, precision, recall) if the true labels are passed
-        
-        """   
-        for hpcGroupName, dataLabelDict in XtrainSG.items():
-            stage1Decisions = dataLabelDict["Xtrain"]
-            Ytrue = dataLabelDict["Ytrain"]
-            
-            # Add HPC (last channel to the list of interested channels). Filter the dataset.
-            channels_of_interest_index = globlChannelsOfInterest + [-1]
-            stage1DecisionsFiltered = stage1Decisions[:,channels_of_interest_index]
-
-            # Get the test performance metric for this hpc-globl ensemble based fusion
-            _, test_performance_metric = self.stage2_ensemble_eval(stage1Decisions = stage1DecisionsFiltered, 
-                                                                    Ytrue=Ytrue, 
-                                                                    print_performance_metric=print_performance_metric)
-
-            #TODO: Start here.
-
-    def stage2_ensemble_eval(self, stage1Decisions, Ytrue, print_performance_metric):
-        """
-        Generates the final decision from stage1Decisions. If true label is passed, then will generate performance metrics.
+        Generates the final decision from stage1Decisions using majority voting. 
+        If true label is passed, then will generate performance metrics.
 
         params:        
             - stage1Decisions: Decisions from the participating base-classifiers (Nsample, Nchannel) 
-            - Ytrue: True labels (Nsample, 1)
+            - Ytrue: True labels (Nsamples,)
             - print_performance_metric: If True, then will print the performance metrics to stdout
 
         Output:
@@ -514,17 +648,132 @@ class late_stage_fusion:
                                                    y_pred= final_ensemble_decision, 
                                                    output_dict=True)
 
-            test_performance_metric = {'f1': class_results['weighted avg']['f1-score'],
-                                        'precision': class_results['weighted avg']['precision'],
-                                        'recall': class_results['weighted avg']['recall']}
+            test_performance_metric = {'f1': class_results['macro avg']['f1-score'],
+                                        'precision': class_results['macro avg']['precision'],
+                                        'recall': class_results['macro avg']['recall']}
 
             if print_performance_metric:
                 # Print the classification report and the confusion matrix
-                print(f" ----- Evaluation performation metrics -----")
+                print(f" ----- [Majority Voting] Evaluation performation metrics -----")
                 print(classification_report(Ytrue,final_ensemble_decision))
                 print(confusion_matrix(Ytrue, final_ensemble_decision))
 
         return final_ensemble_decision, test_performance_metric 
+    
+    
+    def stage2_globlFusion_ensemble_eval(self, Xeval, Yeval, updateObjectPerformanceMetrics, print_performance_metric):
+        """
+        Generates the evaluation scores for globl fusion : ("dvfs" created with channels 1-11, "globl" created with channels 1-15)
+        
+        params:
+            - Xeval: dataset (Nchannels, Nsamples, feature_size)
+            - Yeval: labels (Nsamples,)
+            - updateObjectPerformanceMetrics: If True, then will update the performance metrics of the hpc-group base-classifiers.
+            - print_performance_metric: If True, then will print the performance metrics to stdout
+
+        Output:
+            - Updates the self.globlFusionPerformanceMetric if updateObjectPerformanceMetrics is True
+        """
+        # Generate the predicted labels for all the channels
+        allGLOBL_predict_labels = self.stage1evalGLOBL(XtestGLOBL = Xeval, 
+                                                        YtestGLOBL = Yeval, 
+                                                        updateObjectPerformanceMetrics = False,
+                                                        print_performance_metric=False) 
+
+        # Get the indices for "dvfs" channels and "globl" channels
+        dvfs_channels = late_stage_fusion.globlChannelNameList[:11]
+        globl_channels = late_stage_fusion.globlChannelNameList
+        dvfsChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in dvfs_channels]
+        globlChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in globl_channels]
+
+        # Filter the predictions for the "dvfs" channels and the "globl" channels
+        stage1DecisionsFilteredDVFS = allGLOBL_predict_labels[:,dvfsChnIndex]
+        stage1DecisionsFilteredGLOBL = allGLOBL_predict_labels[:,globlChnIndex]
+
+        # Get the evaluation metrics
+        print(" *** Fusing the DVFS channels ***")
+        _, dvfsFusion_performance_metric = self.ensemble_eval_using_majority_vote(stage1Decisions = stage1DecisionsFilteredDVFS, 
+                                                                                Ytrue = Yeval, 
+                                                                                print_performance_metric = print_performance_metric)
+        print(" *** Fusing the GLOBL channels ***")
+        _, globlFusion_performance_metric = self.ensemble_eval_using_majority_vote(stage1Decisions = stage1DecisionsFilteredGLOBL, 
+                                                                                Ytrue = Yeval, 
+                                                                                print_performance_metric = print_performance_metric)
+
+        if updateObjectPerformanceMetrics:
+            self.globlFusionPerformanceMetric = {"dvfs":dvfsFusion_performance_metric, "globl":globlFusion_performance_metric}
+
+    
+    def stage2_hpcGlobl_ensemble_eval(self, XtrainSG, updateObjectPerformanceMetrics, print_performance_metric):
+        """
+        Generates the evaluation scores for each of the four hpc-globl-groups.
+        Updates the self.hpcGloblFusionPerformanceMetricAllGroup if updateObjectPerformanceMetrics is True
+        
+        params:        
+            - XtrainSG: {"hpc-group-1":{"Xtrain":dataset, "Ytrain":labels}, ...}
+                                        dataset shape - (Nsample, Nchannel+1) -> Includes both globl and hpc channels
+                                        label shape - (Nsample, 1)
+
+            - updateObjectPerformanceMetrics: If True, then will update the performance metrics of the hpc-group base-classifiers.
+            - print_performance_metric: If True, then will print the performance metrics to stdout
+
+        Output:
+            - Updates the self.hpcGloblFusionPerformanceMetricAllGroup if updateObjectPerformanceMetrics is True
+        """   
+        for hpcGroupName, dataLabelDict in XtrainSG.items():
+            print(f" ----------------------- HPC+DVFS+GLOBL fusion for group : {hpcGroupName} -----------------------")
+            stage1Decisions = dataLabelDict["Xtrain"]
+            Ytrue = dataLabelDict["Ytrain"]
+            
+            # Get the test performance metric for only HPC
+            print(" *** Only HPC channel ***")
+            hpcPrediction = stage1Decisions[:,[-1]]
+            _, hpc_performance_metric = self.ensemble_eval_using_majority_vote(stage1Decisions = hpcPrediction, 
+                                                                                Ytrue = Ytrue, 
+                                                                                print_performance_metric = print_performance_metric)
+        
+            # Get the test performance metric for HPC+DVFS
+            print(" *** Fusing the HPC+DVFS channels ***")
+            dvfs_channels = late_stage_fusion.globlChannelNameList[:11]
+            dvfsChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in dvfs_channels]
+            channels_of_interest_index = dvfsChnIndex + [-1]
+            stage1DecisionsFiltered = stage1Decisions[:,channels_of_interest_index]
+            _, hpcDvfs_performance_metric = self.ensemble_eval_using_majority_vote(stage1Decisions = stage1DecisionsFiltered, 
+                                                                                Ytrue = Ytrue, 
+                                                                                print_performance_metric = print_performance_metric)
+
+            # Get the test performance metric for HPC+GLOBL
+            print(" *** Fusing the HPC+GLOBL channels ***")
+            globl_channels = late_stage_fusion.globlChannelNameList
+            globlChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in globl_channels]
+            channels_of_interest_index = globlChnIndex + [-1]
+            stage1DecisionsFiltered = stage1Decisions[:,channels_of_interest_index]
+            _, hpcGlobl_performance_metric = self.ensemble_eval_using_majority_vote(stage1Decisions = stage1DecisionsFiltered, 
+                                                                                Ytrue = Ytrue, 
+                                                                                print_performance_metric = print_performance_metric)
+
+            if updateObjectPerformanceMetrics:
+                self.hpcGloblFusionPerformanceMetricAllGroup[hpcGroupName]["hpc"] = hpc_performance_metric
+                self.hpcGloblFusionPerformanceMetricAllGroup[hpcGroupName]["hpc-dvfs-ensemble"] = hpcDvfs_performance_metric
+                self.hpcGloblFusionPerformanceMetricAllGroup[hpcGroupName]["hpc-globl-ensemble"] = hpcGlobl_performance_metric
+
+    def pretty_print_performance_metric(self):
+        """
+        Prints the performance metric to stdout.
+        """
+        print("----------- GLOBL and DVFS fusion performance metric -----------")
+        for fType,perfMetric in self.globlFusionPerformanceMetric.items():
+            print(f" Fusion type: {fType} | F1 : {perfMetric['f1']} | precision : {perfMetric['precision']} | recall : {perfMetric['recall']}")
+        print("----------- HPC and DVFS fusion performance metric -----------")
+        for gName,allPerf in self.hpcGloblFusionPerformanceMetricAllGroup.items():
+            print(f"- Group : {gName}")
+            for fType, perfMetric in allPerf.items():    
+                try:
+                    print(f" Fusion type: {fType} | F1 : {perfMetric['f1']} | precision : {perfMetric['precision']} | recall : {perfMetric['recall']}")
+                except:
+                    continue    
+
+
 
     @staticmethod
     def get_hashList_from_fileList(file_paths):
@@ -558,8 +807,10 @@ class late_stage_fusion:
         model_pickle_file = {"globlChannelBaseClf":self.globlChannelBaseClf,
                                 "hpcGroupBaseClf":self.hpcGroupBaseClf,
                                 "stage2mlp":self.stage2mlp,
+                                "hpcGloblTestFileHashlist": self.hpcGloblTestFileHashlist,
                                 "stage1ClassifierPerformanceMetrics":self.stage1ClassifierPerformanceMetrics,  
-                                "fusionPerformanceMetric":self.fusionPerformanceMetric}
+                                "globlFusionPerformanceMetric":self.globlFusionPerformanceMetric,
+                                "hpcGloblFusionPerformanceMetricAllGroup":self.hpcGloblFusionPerformanceMetricAllGroup}
 
         # Write the pickle file
         with open(fpath, 'wb') as handle:
@@ -577,8 +828,10 @@ class late_stage_fusion:
         self.globlChannelBaseClf = model_pickle_file["globlChannelBaseClf"]
         self.hpcGroupBaseClf = model_pickle_file["hpcGroupBaseClf"]
         self.stage2mlp = model_pickle_file["stage2mlp"]
+        self.hpcGloblTestFileHashlist = model_pickle_file["hpcGloblTestFileHashlist"]
         self.stage1ClassifierPerformanceMetrics = model_pickle_file["stage1ClassifierPerformanceMetrics"]
-        self.fusionPerformanceMetric = model_pickle_file["fusionPerformanceMetric"]
+        self.globlFusionPerformanceMetric = model_pickle_file["globlFusionPerformanceMetric"]
+        self.hpcGloblFusionPerformanceMetricAllGroup = model_pickle_file["hpcGloblFusionPerformanceMetricAllGroup"]
 
 
     def stage2_mlpTrain(self, XtrainSG, includeHPC, globlChannelsOfInterest):
@@ -604,6 +857,7 @@ class late_stage_fusion:
         """
         unit test for the late_stage_fusion object
         """
+        ############################### Testing the base classifier modules ###############################
         # Loading the unmatched datasets for the unit tests
         hpc_x_train = []
         hpc_y_train = []
@@ -625,53 +879,108 @@ class late_stage_fusion:
         print("Details of HPC training and test data")
         print(f" - Shape of the training data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(hpc_x_train,hpc_y_train)]}")
         print(f" - Shape of the test data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(hpc_x_test,hpc_y_test)]}")
-
+        
+        #################### Resampler ####################
+        rmInst = resample_dataset(malwarePercent=0.1)
+        dfvs_X_train, dfvs_Y_train = rmInst.resampleBaseTensor(X=dfvs_X_train, y=dfvs_Y_train)
+        dfvs_X_test, dfvs_Y_test = rmInst.resampleBaseTensor(X=dfvs_X_test, y=dfvs_Y_test)
+        hpc_x_train, hpc_y_train = rmInst.resampleHpcTensor(Xlist=hpc_x_train, yList=hpc_y_train)
+        hpc_x_test, hpc_y_test = rmInst.resampleHpcTensor(Xlist=hpc_x_test, yList=hpc_y_test)
+        ###################################################
+        
+        # Testing the training module
         print(f" - Training the hpc and globl base classifiers -")
         lateFusionInstance = late_stage_fusion(args=args)
-        lateFusionInstance.stage1trainGLOBL(XtrainGLOBL=dfvs_X_train, YtrainGLOBL=dfvs_Y_train)
-        lateFusionInstance.stage1trainHPC(XtrainHPC=hpc_x_train, YtrainHPC=hpc_y_train)
+        lateFusionInstance.stage1trainGLOBL(XtrainGLOBL=dfvs_X_train, YtrainGLOBL=dfvs_Y_train, updateObjectPerformanceMetrics= True)
+        lateFusionInstance.stage1trainHPC(XtrainHPC=hpc_x_train, YtrainHPC=hpc_y_train, updateObjectPerformanceMetrics=True)
         
-        print(f" - Evaluating the hpc and globl base classifiers -")
-        lateFusionInstance.stage1evalGLOBL(XtestGLOBL=dfvs_X_test, YtestGLOBL=dfvs_Y_test, updateObjectPerformanceMetrics=True)
-        lateFusionInstance.stage1evalHPC(XtestHPC=hpc_x_test, YtestHPC=hpc_y_test, updateObjectPerformanceMetrics=True)
-
-        print(" - Summary performance metric of all the models -")
+        print(" - Summary performance metric of all the models [post training] -")
         for chnName, performanceMetric in lateFusionInstance.stage1ClassifierPerformanceMetrics.items():
             print(chnName, performanceMetric)
 
-        # print(f" - Saving the object -")
-        # lateFusionInstance.save_fusion_object(fpath="testmodel.pkl")
+        # Testing the evaluation module
+        print(f" - Evaluating the hpc and globl base classifiers -")
+        globl_predict_labels = lateFusionInstance.stage1evalGLOBL(XtestGLOBL=dfvs_X_test, YtestGLOBL=dfvs_Y_test, updateObjectPerformanceMetrics=True, print_performance_metric=True)
+        allGroupPredictions = lateFusionInstance.stage1evalHPC(XtestHPC=hpc_x_test, YtestHPC=hpc_y_test, updateObjectPerformanceMetrics=True, print_performance_metric=True)
+
+        print(" - Shape of the predicted labels post evaluation -")
+        print(f" - Globl predicted labels (Nsamples, Nchannels): {globl_predict_labels.shape}")
+        print(f" - HPC predicted labels for all groups (Nsamples, ): {[grp.shape for grp in allGroupPredictions]}")
+
+        print(" - Summary performance metric of all the models [post evaluation] -")
+        for chnName, performanceMetric in lateFusionInstance.stage1ClassifierPerformanceMetrics.items():
+            print(chnName, performanceMetric)
+
+        # Testing the loading and saving module
+        print(f" - Saving the object -")
+        lateFusionInstance.save_fusion_object(fpath="testmodel.pkl")
         
-        # print(f" - Loading the object and testing the models -")
-        # lateFusionInstance = late_stage_fusion(args=args)
-        # lateFusionInstance.load_fusion_object(fpath="testmodel.pkl")
-        # lateFusionInstance.stage1evalGLOBL(XtestGLOBL=dfvs_X_test, YtestGLOBL=dfvs_Y_test, updateObjectPerformanceMetrics=False, print_performance_metric=False)
-        # lateFusionInstance.stage1evalHPC(XtestHPC=hpc_x_test, YtestHPC=hpc_y_test, updateObjectPerformanceMetrics=False, print_performance_metric=False)
+        print(f" - Loading the object and testing the models -")
+        lateFusionInstance = late_stage_fusion(args=args)
+        lateFusionInstance.load_fusion_object(fpath="testmodel.pkl")
+        lateFusionInstance.stage1evalGLOBL(XtestGLOBL=dfvs_X_test, YtestGLOBL=dfvs_Y_test, updateObjectPerformanceMetrics=False, print_performance_metric=True)
+        lateFusionInstance.stage1evalHPC(XtestHPC=hpc_x_test, YtestHPC=hpc_y_test, updateObjectPerformanceMetrics=False, print_performance_metric=True)
 
-        # ############################### Testing the fusion modules ###############################
-        # hpc_x_test = []
-        # hpc_y_test = []
-        # globl_x_test = []
-        # globl_y_test = []
-        # for group in ["rn1","rn2","rn3","rn4"]:
-        #     hpc_x_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/HPC_partition_for_HPC_DVFS_fusion/{group}/channel_bins_test.npy"))
-        #     hpc_y_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/HPC_partition_for_HPC_DVFS_fusion/{group}/labels_test.npy"))
-        #     globl_x_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/DVFS_partition_for_HPC_DVFS_fusion/{group}/channel_bins_test.npy"))
-        #     globl_y_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/DVFS_partition_for_HPC_DVFS_fusion/{group}/labels_test.npy"))
+        print(" - Summary performance metric of all the models [post evaluation post loading] -")
+        for chnName, performanceMetric in lateFusionInstance.stage1ClassifierPerformanceMetrics.items():
+            print(chnName, performanceMetric)
+
+        ############################### Testing the fusion modules ###############################
+        # Loading the datasets for testing the fusion modules
+        hpc_x_test = []
+        hpc_y_test = []
+        hpc_file_paths = []
+        globl_x_test = []
+        globl_y_test = []
+        globl_file_paths = []
+        for group in ["rn1","rn2","rn3","rn4"]:
+            hpc_x_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/HPC_partition_for_HPC_DVFS_fusion/{group}/channel_bins_test.npy"))
+            hpc_y_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/HPC_partition_for_HPC_DVFS_fusion/{group}/labels_test.npy"))
+            with open(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/HPC_partition_for_HPC_DVFS_fusion/{group}/file_paths_test.npy", 'rb') as fp:
+                hpc_file_paths.append(np.array(pickle.load(fp), dtype="object"))
+            
+            globl_x_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/DVFS_partition_for_HPC_DVFS_fusion/{group}/channel_bins_test.npy"))
+            globl_y_test.append(np.load(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/DVFS_partition_for_HPC_DVFS_fusion/{group}/labels_test.npy"))
+            with open(f"/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset/cd-dataset/15/40/DVFS_partition_for_HPC_DVFS_fusion/{group}/file_paths_test.npy", 'rb') as fp:
+                globl_file_paths.append(np.array(pickle.load(fp), dtype="object"))
+            
+        print("Details of HPC and globl matched data")
+        print(f" - Shape of the hpc data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(hpc_x_test,hpc_y_test)]}")
+        print(f" - Shape of the globl data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(globl_x_test,globl_y_test)]}")
+        print(f" - Shape of the file paths hpc and globl : {[(fHpc.shape,fGlobl.shape) for fHpc,fGlobl in zip(hpc_file_paths,globl_file_paths)]}")
         
-        # print("Details of HPC and globl matched data")
-        # print(f" - Shape of the hpc data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(hpc_x_test,hpc_y_test)]}")
-        # print(f" - Shape of the globl data and label : {[(dataset.shape,labels.shape) for dataset,labels in zip(globl_x_test,globl_y_test)]}")
+        # Testing the file hash extractor
+        for fList in hpc_file_paths:
+            print(len(late_stage_fusion.get_hashList_from_fileList(fList)))
 
-        # XtestGLOBL_HPC= {"globl":globl_x_test, "hpc":hpc_x_test}
-        # YtestGLOBL_HPC= {"globl":globl_y_test, "hpc":hpc_y_test}
+        # Tesing the XTrainSG dataset generation
+        XtestGLOBL_HPC= {"globl":globl_x_test, "hpc":hpc_x_test}
+        YtestGLOBL_HPC= {"globl":globl_y_test, "hpc":hpc_y_test}
+        
+        #################### Resampler ####################
+        rmInst = resample_dataset(malwarePercent=0.1)
+        XtestGLOBL_HPC, YtestGLOBL_HPC = rmInst.resampleFusionTensor(XtestGLOBL_HPC=XtestGLOBL_HPC, YtestGLOBL_HPC=YtestGLOBL_HPC)
+        ###################################################
+        
+        print(f" - Testing XTrainSG generation -")
+        lateFusionInstance = late_stage_fusion(args=args)
+        lateFusionInstance.load_fusion_object(fpath="testmodel.pkl")
+        XtrainSG = lateFusionInstance.generateTrainSGdataset(XtestGLOBL_HPC=XtestGLOBL_HPC, YtestGLOBL_HPC = YtestGLOBL_HPC)
+        for hpcGroupName, dataLabelDict in XtrainSG.items():
+            print(hpcGroupName, dataLabelDict["Xtrain"].shape,dataLabelDict["Ytrain"].shape)
 
-        # print(f" - Loading the object and testing the models -")
-        # lateFusionInstance = late_stage_fusion(args=args)
-        # lateFusionInstance.load_fusion_object(fpath="testmodel.pkl")
-        # XtrainSG = lateFusionInstance.generateTrainSGdataset(XtestGLOBL_HPC, YtestGLOBL_HPC)
-        # for hpcGroupName, dataLabelDict in XtrainSG.items():
-        #     print(hpcGroupName, dataLabelDict["Xtrain"].shape,dataLabelDict["Ytrain"].shape)
+        # Testing the globl fusion module
+        lateFusionInstance.stage2_globlFusion_ensemble_eval(Xeval=dfvs_X_test, 
+                                                            Yeval=dfvs_Y_test, 
+                                                            updateObjectPerformanceMetrics=True, 
+                                                            print_performance_metric=True)
+        # Testing the hpc-globl fusion module
+        lateFusionInstance.stage2_hpcGlobl_ensemble_eval(XtrainSG = XtrainSG, 
+                                                        updateObjectPerformanceMetrics=True, 
+                                                        print_performance_metric=True)
+
+        # Testing the performance metric
+        lateFusionInstance.pretty_print_performance_metric()
 
 def main_worker(args, xmd_base_folder_location):
     """
@@ -680,6 +989,7 @@ def main_worker(args, xmd_base_folder_location):
         - args: easydict storing the experimental parameters
         - xmd_base_folder_location: Location of base folder of xmd
     """
+    # resample_dataset.unitTestResampler()
     # baseRFmodel.unit_test_baseRFmodel(args=args)
     late_stage_fusion.unit_test_lateStageFusion(args=args)
 

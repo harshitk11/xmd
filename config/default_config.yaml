@@ -54,6 +54,6 @@ num_histogram_bins: 32                                    # HPC time series is d
 ################################################################################################################################
 
 #********************************************************** Config parameters for training, tuning, and evaluating the ML classifiers ***********************************************************#
-num_cv: 4                                            # Number of cross-validation folds for model tuning
-num_comb_model_tuning: 5                            # Number of different hyperparameter combinations to try for model tuning
+num_cv: 5                                            # Number of cross-validation folds for model tuning
+num_comb_model_tuning: 4                            # Number of different hyperparameter combinations to try for model tuning
 n_jobs: 30                                            # Number of parallel jobs to run for hyperparameter tuning
