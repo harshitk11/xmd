@@ -430,6 +430,9 @@ class late_stage_fusion:
         self.stage2mlp = None
         
         ########################################## Performance metricts  ##########################################
+        # List of file hashes used for training the base classifiers
+        self.baseClassifierTrainFileHashList = None 
+        
         # List of file hashes used for testing the performance of hpc-globl fusion models [Used for VT comparison]
         self.hpcGloblTestFileHashlist = {groupName:None for groupName in late_stage_fusion.hpcGroupNameList}
 
@@ -707,7 +710,65 @@ class late_stage_fusion:
         if updateObjectPerformanceMetrics:
             self.globlFusionPerformanceMetric[splitType] = {"dvfs":dvfsFusion_performance_metric, "globl":globlFusion_performance_metric}
 
-    
+    def stage2_globlFusion_ensemble_eval_USING_TRAINSG(self, XtrainSG, updateObjectPerformanceMetrics, print_performance_metric):
+        """
+        Generates the evaluation scores for globl fusion : ("dvfs" created with channels 1-11, "globl" created with channels 1-15)
+        using the Train-SG dataset which is divided into rn buckets. This method is only used when evaluating on the std-dataset using the train-sg dataset.
+        
+        params:        
+            - XtrainSG: {"hpc-group-1":{"Xtrain":dataset, "Ytrain":labels}, ...}
+                                        dataset shape - (Nsample, Nchannel+1) -> Includes both globl and hpc channel predictions
+                                        label shape - (Nsample, 1)
+
+            - updateObjectPerformanceMetrics: If True, then will update the performance metrics of the hpc-group base-classifiers.
+            - print_performance_metric: If True, then will print the performance metrics to stdout
+
+        Output:
+            - Updates the self.globlFusionPerformanceMetric if updateObjectPerformanceMetrics is True 
+        """
+        # Create a combined Xeval and Yeval by vertically stacking the decisions from all the rn buckets
+        Xeval_comb = []
+        yeval_comb = []
+
+        # Get the indices for "dvfs" channels and "globl" channels
+        dvfs_channels = late_stage_fusion.globlChannelNameList[:11]
+        globl_channels = late_stage_fusion.globlChannelNameList
+        dvfsChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in dvfs_channels]
+        globlChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in globl_channels]
+
+        for hpcGroupName, dataLabelDict in XtrainSG.items():
+            stage1Decisions = dataLabelDict["Xtrain"]
+            Ytrue = dataLabelDict["Ytrain"]
+            
+            # Removing the HPC decisions and add it to the list
+            stage1Decisions = stage1Decisions[:,globlChnIndex]
+            Xeval_comb.append(stage1Decisions)
+            yeval_comb.append(Ytrue)
+        
+        # Stack the rn buckets
+        allGLOBL_predict_labels = np.concatenate(Xeval_comb, axis=0)
+        Yeval=np.concatenate(yeval_comb, axis=0)
+        
+        ################################# Now generate the performance metrics #################################
+        # Filter the predictions for the "dvfs" channels and the "globl" channels
+        stage1DecisionsFilteredDVFS = allGLOBL_predict_labels[:,dvfsChnIndex]
+        stage1DecisionsFilteredGLOBL = allGLOBL_predict_labels[:,globlChnIndex]
+
+        # Get the evaluation metrics
+        print(" *** Fusing the DVFS channels ***")
+        _, dvfsFusion_performance_metric = self.ensemble_eval_using_majority_vote(stage1Decisions = stage1DecisionsFilteredDVFS, 
+                                                                                Ytrue = Yeval, 
+                                                                                print_performance_metric = print_performance_metric)
+        print(" *** Fusing the GLOBL channels ***")
+        _, globlFusion_performance_metric = self.ensemble_eval_using_majority_vote(stage1Decisions = stage1DecisionsFilteredGLOBL, 
+                                                                                Ytrue = Yeval, 
+                                                                                print_performance_metric = print_performance_metric)
+
+        if updateObjectPerformanceMetrics:
+            self.globlFusionPerformanceMetric["training"] = {"dvfs":dvfsFusion_performance_metric, "globl":globlFusion_performance_metric}
+
+        
+
     def stage2_hpcGlobl_ensemble_eval(self, XtrainSG, updateObjectPerformanceMetrics, print_performance_metric):
         """
         Generates the evaluation scores for each of the four hpc-globl-groups.
@@ -908,39 +969,39 @@ class late_stage_fusion:
         hpc_x_test, hpc_y_test = rmInst.resampleHpcTensor(Xlist=hpc_x_test, yList=hpc_y_test)
         ###################################################
         
-        # Testing the training module
-        print(f" - Training the hpc and globl base classifiers -")
-        lateFusionInstance = late_stage_fusion(args=args)
-        lateFusionInstance.stage1trainGLOBL(XtrainGLOBL=dfvs_X_train, YtrainGLOBL=dfvs_Y_train, updateObjectPerformanceMetrics= True)
-        lateFusionInstance.stage1trainHPC(XtrainHPC=hpc_x_train, YtrainHPC=hpc_y_train, updateObjectPerformanceMetrics=True)
+        # # Testing the training module
+        # print(f" - Training the hpc and globl base classifiers -")
+        # lateFusionInstance = late_stage_fusion(args=args)
+        # lateFusionInstance.stage1trainGLOBL(XtrainGLOBL=dfvs_X_train, YtrainGLOBL=dfvs_Y_train, updateObjectPerformanceMetrics= True)
+        # lateFusionInstance.stage1trainHPC(XtrainHPC=hpc_x_train, YtrainHPC=hpc_y_train, updateObjectPerformanceMetrics=True)
         
-        print(" - Summary performance metric of all the models [post training] -")
-        lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True)
+        # print(" - Summary performance metric of all the models [post training] -")
+        # lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True)
 
-        # Testing the evaluation module
-        print(f" - Evaluating the hpc and globl base classifiers -")
-        globl_predict_labels = lateFusionInstance.stage1evalGLOBL(XtestGLOBL=dfvs_X_test, YtestGLOBL=dfvs_Y_test, updateObjectPerformanceMetrics=True, print_performance_metric=True)
-        allGroupPredictions = lateFusionInstance.stage1evalHPC(XtestHPC=hpc_x_test, YtestHPC=hpc_y_test, updateObjectPerformanceMetrics=True, print_performance_metric=True)
+        # # Testing the evaluation module
+        # print(f" - Evaluating the hpc and globl base classifiers -")
+        # globl_predict_labels = lateFusionInstance.stage1evalGLOBL(XtestGLOBL=dfvs_X_test, YtestGLOBL=dfvs_Y_test, updateObjectPerformanceMetrics=True, print_performance_metric=True)
+        # allGroupPredictions = lateFusionInstance.stage1evalHPC(XtestHPC=hpc_x_test, YtestHPC=hpc_y_test, updateObjectPerformanceMetrics=True, print_performance_metric=True)
 
-        print(" - Shape of the predicted labels post evaluation -")
-        print(f" - Globl predicted labels (Nsamples, Nchannels): {globl_predict_labels.shape}")
-        print(f" - HPC predicted labels for all groups (Nsamples, ): {[grp.shape for grp in allGroupPredictions]}")
+        # print(" - Shape of the predicted labels post evaluation -")
+        # print(f" - Globl predicted labels (Nsamples, Nchannels): {globl_predict_labels.shape}")
+        # print(f" - HPC predicted labels for all groups (Nsamples, ): {[grp.shape for grp in allGroupPredictions]}")
 
-        print(" - Summary performance metric of all the models [post evaluation] -")
-        lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True)
+        # print(" - Summary performance metric of all the models [post evaluation] -")
+        # lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True)
         
-        # Testing the loading and saving module
-        print(f" - Saving the object -")
-        lateFusionInstance.save_fusion_object(fpath="testmodel.pkl")
+        # # Testing the loading and saving module
+        # print(f" - Saving the object -")
+        # lateFusionInstance.save_fusion_object(fpath="testmodel.pkl")
         
-        print(f" - Loading the object and testing the models -")
-        lateFusionInstance = late_stage_fusion(args=args)
-        lateFusionInstance.load_fusion_object(fpath="testmodel.pkl")
-        lateFusionInstance.stage1evalGLOBL(XtestGLOBL=dfvs_X_test, YtestGLOBL=dfvs_Y_test, updateObjectPerformanceMetrics=False, print_performance_metric=True)
-        lateFusionInstance.stage1evalHPC(XtestHPC=hpc_x_test, YtestHPC=hpc_y_test, updateObjectPerformanceMetrics=False, print_performance_metric=True)
+        # print(f" - Loading the object and testing the models -")
+        # lateFusionInstance = late_stage_fusion(args=args)
+        # lateFusionInstance.load_fusion_object(fpath="testmodel.pkl")
+        # lateFusionInstance.stage1evalGLOBL(XtestGLOBL=dfvs_X_test, YtestGLOBL=dfvs_Y_test, updateObjectPerformanceMetrics=False, print_performance_metric=True)
+        # lateFusionInstance.stage1evalHPC(XtestHPC=hpc_x_test, YtestHPC=hpc_y_test, updateObjectPerformanceMetrics=False, print_performance_metric=True)
 
-        print(" - Summary performance metric of all the models [post evaluation post loading] -")
-        lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True)
+        # print(" - Summary performance metric of all the models [post evaluation post loading] -")
+        # lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True)
         
         ############################### Testing the fusion modules ###############################
         # Loading the datasets for testing the fusion modules
@@ -992,6 +1053,11 @@ class late_stage_fusion:
                                                             updateObjectPerformanceMetrics=True, 
                                                             print_performance_metric=True,
                                                             splitType="testing")
+
+        # Testing the globl fusion module that operates on the TrainSG dataset
+        lateFusionInstance.stage2_globlFusion_ensemble_eval_USING_TRAINSG(XtrainSG = XtrainSG, 
+                                                                        updateObjectPerformanceMetrics=True, 
+                                                                        print_performance_metric=True)
         # Testing the hpc-globl fusion module
         lateFusionInstance.stage2_hpcGlobl_ensemble_eval(XtrainSG = XtrainSG, 
                                                         updateObjectPerformanceMetrics=True, 
@@ -1131,21 +1197,31 @@ class orchestrator:
     Orchestrates the training and evaluation tasks for all the datasets and classification tasks of interest.
     """
     
-    def __init__(self, args) -> None:
+    def __init__(self, args, basePath_featureEngineeredDataset, datasetName, malwarePercent) -> None:
         self.args = args
-        # Used for accessing the datasets
         # Location of the base folder where all the feature engineered datasets are stored
-        self.basePath_featureEngineeredDataset = None
-        self.candidateLogcatRuntimeThresholds = None
-        self.candidateTruncatedDurations = None
+        self.basePath_featureEngineeredDataset = basePath_featureEngineeredDataset
+        
+        # List of logcat-runtime-thresholds and candidate-truncated-durations [Used for accessing the datasets]
+        self.candidateLogcatRuntimeThresholds = [i for i in range(0, args.collected_duration, args.step_size_logcat_runtimeThreshold)]
+        self.candidateTruncatedDurations = [i for i in range(args.step_size_truncated_duration, args.collected_duration+args.step_size_truncated_duration, args.step_size_truncated_duration)]
 
-        # Type of the dataset 
-        self.datasetType = None
+        # Name of the dataset 
+        self.datasetName = datasetName
+
+        # Percentage of malware in the dataset. Can take value 0.1 (for 10%) or 0.5 (for 50%)
+        self.malwarePercent = malwarePercent
+
         # 2-D array storing the grid of late-stage-fusion objects
-        self.lateStageFusionObject = None
+        ## self.lateStageFusionObject : {<logcatRuntimeThreshold>:{<truncatedDuration>: ... }, ... }
+        self.lateStageFusionObject = {}
+        for logcatRuntimeThreshold in self.candidateLogcatRuntimeThresholds:
+            self.lateStageFusionObject[logcatRuntimeThreshold] = {}
+            for truncatedDuration in self.candidateTruncatedDurations:
+                self.lateStageFusionObject[logcatRuntimeThreshold][truncatedDuration] = None
 
 
-    def std_dataset_tasks(self):
+    def std_dataset_tasks(self, logcatRuntimeThreshold, truncatedDuration):
         """
         Tasks:
             -Load the dataset for all the classification tasks.
@@ -1158,10 +1234,55 @@ class orchestrator:
         params:
             - logcatRuntimeThreshold (int):
             - truncatedDuration (int):
-            - self.datasetType (str):
-            - self.lateStageFusionObject
+            - self.datasetName (str):
+            - self.lateStageFusionObject : Stores the late stage fusion object for the corresponding logcatRuntimeThreshold and truncatedDuration
         """
-        pass
+        ######################################### Load the dataset for all the tasks ########################################
+        loadDatasetInst = featureEngineeredDatasetLoader(basePath_featureEngineeredDataset=self.basePath_featureEngineeredDataset,
+                                                        datasetName="std-dataset",
+                                                        logcatRuntimeThreshold=logcatRuntimeThreshold,
+                                                        truncatedDuration=truncatedDuration)
+        featureEngineeredData = loadDatasetInst.load_dataset()
+
+        # For training the globl and hpc base classifiers
+        dfvs_X_train, dfvs_Y_train, dvfs_fileList = featureEngineeredData['DVFS_individual']['train']
+        hpc_X_train, hpc_Y_train, hpc_fileList = featureEngineeredData['HPC_individual']['train']
+
+        # XTrainSG dataset generation
+        hpc_X_trainSG, hpc_Y_trainSG, hpc_fileListSG = featureEngineeredData['HPC_partition_for_HPC_DVFS_fusion']['trainSG']
+        globl_X_trainSG, globl_Y_trainSG, globl_fileListSG = featureEngineeredData['DVFS_partition_for_HPC_DVFS_fusion']['trainSG']
+        XtestGLOBL_HPC= {"globl":globl_X_trainSG, "hpc":hpc_X_trainSG}
+        YtestGLOBL_HPC= {"globl":globl_Y_trainSG, "hpc":hpc_Y_trainSG}
+        XtrainSG = lateFusionInstance.generateTrainSGdataset(XtestGLOBL_HPC=XtestGLOBL_HPC, YtestGLOBL_HPC = YtestGLOBL_HPC)
+        ######################################################################################################################
+        
+        ######################################## Resampler ########################################
+        rmInst = resample_dataset(malwarePercent=self.malwarePercent)
+        dfvs_X_train, dfvs_Y_train = rmInst.resampleBaseTensor(X=dfvs_X_train, y=dfvs_Y_train)
+        hpc_x_train, hpc_y_train = rmInst.resampleHpcTensor(Xlist=hpc_X_train, yList=hpc_Y_train)
+        ###########################################################################################
+        
+        ######################################### Train the HPC and the DVFS base classifiers ########################################
+        print(f" - Training the hpc and globl base classifiers -")
+        lateFusionInstance = late_stage_fusion(args=self.args)
+        lateFusionInstance.stage1trainGLOBL(XtrainGLOBL=dfvs_X_train, YtrainGLOBL=dfvs_Y_train, updateObjectPerformanceMetrics= True)
+        lateFusionInstance.stage1trainHPC(XtrainHPC=hpc_x_train, YtrainHPC=hpc_y_train, updateObjectPerformanceMetrics=True)
+        ##############################################################################################################################
+        
+        ######################################### Test the fusion modules using the train-SG dataset ########################################
+        # Generate the globl and dvfs fusion scores
+        lateFusionInstance.stage2_globlFusion_ensemble_eval_USING_TRAINSG(XtrainSG = XtrainSG, 
+                                                                        updateObjectPerformanceMetrics=True, 
+                                                                        print_performance_metric=True)
+        
+        # Generate the hpc-globl fusion scores
+        lateFusionInstance.stage2_hpcGlobl_ensemble_eval(XtrainSG = XtrainSG, 
+                                                        updateObjectPerformanceMetrics=True, 
+                                                        print_performance_metric=True)
+        #####################################################################################################################################
+        # Save the hash list used for training the base classifiers
+        lateFusionInstance.baseClassifierTrainFileHashList = late_stage_fusion.get_hashList_from_fileList(file_paths=dvfs_fileList)
+        
 
     def cd_dataset_tasks(self):
         """
@@ -1229,8 +1350,8 @@ def main_worker(args, xmd_base_folder_location):
     """
     # resample_dataset.unitTestResampler()
     # baseRFmodel.unit_test_baseRFmodel(args=args)
-    # late_stage_fusion.unit_test_lateStageFusion(args=args)
-    featureEngineeredDatasetLoader.unit_test_featureEngineeredDatasetLoader()
+    late_stage_fusion.unit_test_lateStageFusion(args=args)
+    # featureEngineeredDatasetLoader.unit_test_featureEngineeredDatasetLoader()
 
 
 def main():
