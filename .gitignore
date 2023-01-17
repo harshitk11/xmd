@@ -29,5 +29,11 @@ baremetal_data_collection_framework/androzoo/top_app_androzoo_info.json
 # Ignore the avclass files
 avclass/
 
+# Ignore res files
+res/featureEngineeredDatasetDetails
+res/trainedModels
+res/filesToDelete.txt
+config/default_config_copy.yaml
+
 
 

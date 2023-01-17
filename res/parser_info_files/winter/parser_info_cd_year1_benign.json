@@ -13319,5 +13319,1855 @@
                 44.978
             ]
         }
+    ],
+    "/logs_cd_year1_benign/com_cuvora_carinfo_09AB1DFB33ADB681980F82D577F65D5F355A8C17B67BB2F9FFC8A1FC5EB12FE7.apk/logcat": [
+        6,
+        {
+            "_com_cuvora_carinfo_logcat_iter_1_rn2.txt": [
+                15.448275862068964,
+                225,
+                14.484
+            ]
+        },
+        {
+            "_com_cuvora_carinfo_logcat_iter_0_rn4.txt": [
+                4.205598206669444,
+                213,
+                50.391
+            ]
+        },
+        {
+            "_com_cuvora_carinfo_logcat_iter_0_rn2.txt": [
+                15.469305274893737,
+                223,
+                14.341
+            ]
+        },
+        {
+            "_com_cuvora_carinfo_logcat_iter_1_rn1.txt": [
+                3.6845876039945606,
+                253,
+                68.379
+            ]
+        },
+        {
+            "_com_cuvora_carinfo_logcat_iter_1_rn4.txt": [
+                6.79655107425556,
+                578,
+                84.878
+            ]
+        },
+        {
+            "_com_cuvora_carinfo_logcat_iter_0_rn3.txt": [
+                14.08450704225352,
+                201,
+                14.174
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/de_eventim_mobile_app_Android_0C33595251D1F8E13D80D5F5BBB5BA6207157B0B8F506349B44114C54D3A4B62.apk/logcat": [
+        8,
+        {
+            "_de_eventim_mobile_app_Android_logcat_iter_1_rn2.txt": [
+                124.62462462462462,
+                84,
+                0.666
+            ]
+        },
+        {
+            "_de_eventim_mobile_app_Android_logcat_iter_0_rn1.txt": [
+                1.8433389467935004,
+                82,
+                43.942
+            ]
+        },
+        {
+            "_de_eventim_mobile_app_Android_logcat_iter_0_rn3.txt": [
+                1.502813942433025,
+                99,
+                65.201
+            ]
+        },
+        {
+            "_de_eventim_mobile_app_Android_logcat_iter_0_rn4.txt": [
+                82.87292817679558,
+                91,
+                1.08
+            ]
+        },
+        {
+            "_de_eventim_mobile_app_Android_logcat_iter_1_rn1.txt": [
+                1.5073483230749907,
+                97,
+                63.666
+            ]
+        },
+        {
+            "_de_eventim_mobile_app_Android_logcat_iter_1_rn3.txt": [
+                1.529612338872867,
+                97,
+                62.755
+            ]
+        },
+        {
+            "_de_eventim_mobile_app_Android_logcat_iter_1_rn4.txt": [
+                1.4876058940511423,
+                96,
+                63.861
+            ]
+        },
+        {
+            "_de_eventim_mobile_app_Android_logcat_iter_0_rn2.txt": [
+                1.4924454565036773,
+                98,
+                64.992
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_sanhe_clipclaps_04031381B87739C645512EBA60CA8ED555BFFDDB513804FEA8C53B2C5E708ABB.apk/logcat": [
+        8,
+        {
+            "_com_sanhe_clipclaps_logcat_iter_1_rn1.txt": [
+                6.56526261050442,
+                203,
+                30.756
+            ]
+        },
+        {
+            "_com_sanhe_clipclaps_logcat_iter_0_rn3.txt": [
+                46.88291941206285,
+                186,
+                3.926
+            ]
+        },
+        {
+            "_com_sanhe_clipclaps_logcat_iter_1_rn2.txt": [
+                5.490964398958522,
+                214,
+                38.631
+            ]
+        },
+        {
+            "_com_sanhe_clipclaps_logcat_iter_0_rn4.txt": [
+                51.06048703849175,
+                196,
+                3.819
+            ]
+        },
+        {
+            "_com_sanhe_clipclaps_logcat_iter_1_rn4.txt": [
+                5.23891907697556,
+                216,
+                40.749
+            ]
+        },
+        {
+            "_com_sanhe_clipclaps_logcat_iter_0_rn1.txt": [
+                6.301656163906394,
+                200,
+                31.571
+            ]
+        },
+        {
+            "_com_sanhe_clipclaps_logcat_iter_0_rn2.txt": [
+                5.9140932231808065,
+                195,
+                32.801
+            ]
+        },
+        {
+            "_com_sanhe_clipclaps_logcat_iter_1_rn3.txt": [
+                3.453620405000168,
+                206,
+                59.328
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_b2winc_amedigital_0E318C0304AC64582B0DBB094ECF894265ACA76C5BF51E46D70396F7731B8AAB.apk/logcat": [
+        7,
+        {
+            "_com_b2winc_amedigital_logcat_iter_0_rn1.txt": [
+                10.793154867570829,
+                153,
+                14.081
+            ]
+        },
+        {
+            "_com_b2winc_amedigital_logcat_iter_1_rn2.txt": [
+                7.027618877368609,
+                630,
+                89.504
+            ]
+        },
+        {
+            "_com_b2winc_amedigital_logcat_iter_0_rn2.txt": [
+                8.548807538493921,
+                529,
+                61.755
+            ]
+        },
+        {
+            "_com_b2winc_amedigital_logcat_iter_0_rn3.txt": [
+                63.186077643908966,
+                237,
+                3.735
+            ]
+        },
+        {
+            "_com_b2winc_amedigital_logcat_iter_1_rn4.txt": [
+                151.49664019547953,
+                249,
+                1.637
+            ]
+        },
+        {
+            "_com_b2winc_amedigital_logcat_iter_1_rn1.txt": [
+                7.210887424392887,
+                640,
+                88.616
+            ]
+        },
+        {
+            "_com_b2winc_amedigital_logcat_iter_1_rn3.txt": [
+                6.854136136528854,
+                595,
+                86.655
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/org_reactivephone_487B3AAED0FBCE94E5103EEB42708DC11CBDE157053BF26948B068862F13C79B.apk/logcat": [
+        8,
+        {
+            "_org_reactivephone_logcat_iter_1_rn1.txt": [
+                4.12193014932741,
+                168,
+                40.509
+            ]
+        },
+        {
+            "_org_reactivephone_logcat_iter_1_rn2.txt": [
+                2.83027083514761,
+                196,
+                68.88
+            ]
+        },
+        {
+            "_org_reactivephone_logcat_iter_0_rn4.txt": [
+                3.3284096504185134,
+                170,
+                50.771
+            ]
+        },
+        {
+            "_org_reactivephone_logcat_iter_0_rn2.txt": [
+                4.3517445603192995,
+                170,
+                38.815
+            ]
+        },
+        {
+            "_org_reactivephone_logcat_iter_1_rn4.txt": [
+                2.810256708941858,
+                194,
+                68.661
+            ]
+        },
+        {
+            "_org_reactivephone_logcat_iter_0_rn1.txt": [
+                5.905376639428688,
+                173,
+                29.126
+            ]
+        },
+        {
+            "_org_reactivephone_logcat_iter_1_rn3.txt": [
+                4.420660772452304,
+                172,
+                38.664
+            ]
+        },
+        {
+            "_org_reactivephone_logcat_iter_0_rn3.txt": [
+                5.76486147376988,
+                171,
+                29.487
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_areatec_Digipare_252358FD0C1C08CD87FAD9B02D3209F0AFF8477453945B8DEDFB83A8ABEFF2F8.apk/logcat": [
+        8,
+        {
+            "_com_areatec_Digipare_logcat_iter_1_rn2.txt": [
+                10.603139630955658,
+                78,
+                7.262
+            ]
+        },
+        {
+            "_com_areatec_Digipare_logcat_iter_0_rn4.txt": [
+                2.0437956204379564,
+                64,
+                30.825
+            ]
+        },
+        {
+            "_com_areatec_Digipare_logcat_iter_1_rn3.txt": [
+                2.5080957521112452,
+                80,
+                31.49
+            ]
+        },
+        {
+            "_com_areatec_Digipare_logcat_iter_0_rn3.txt": [
+                2.5433004957826286,
+                80,
+                31.05
+            ]
+        },
+        {
+            "_com_areatec_Digipare_logcat_iter_0_rn2.txt": [
+                31.562740569668975,
+                42,
+                1.299
+            ]
+        },
+        {
+            "_com_areatec_Digipare_logcat_iter_1_rn1.txt": [
+                43.29311568488289,
+                62,
+                1.399
+            ]
+        },
+        {
+            "_com_areatec_Digipare_logcat_iter_0_rn1.txt": [
+                1.4413413731090658,
+                110,
+                75.624
+            ]
+        },
+        {
+            "_com_areatec_Digipare_logcat_iter_1_rn4.txt": [
+                2.3539890571319506,
+                75,
+                31.418
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_grubhub_android_260F87C1FD1BBB250885825110F487A65C52774BD4E8B55517E4DC620C3BAFD9.apk/logcat": [
+        8,
+        {
+            "_com_grubhub_android_logcat_iter_0_rn2.txt": [
+                3.576063011135589,
+                238,
+                66.256
+            ]
+        },
+        {
+            "_com_grubhub_android_logcat_iter_1_rn4.txt": [
+                4.470029360340448,
+                272,
+                60.592
+            ]
+        },
+        {
+            "_com_grubhub_android_logcat_iter_0_rn4.txt": [
+                39.975209172606135,
+                259,
+                6.442
+            ]
+        },
+        {
+            "_com_grubhub_android_logcat_iter_1_rn1.txt": [
+                4.265433706694452,
+                263,
+                61.41
+            ]
+        },
+        {
+            "_com_grubhub_android_logcat_iter_0_rn1.txt": [
+                6.8008455105229295,
+                75,
+                10.881
+            ]
+        },
+        {
+            "_com_grubhub_android_logcat_iter_1_rn3.txt": [
+                4.292120435618193,
+                269,
+                62.42
+            ]
+        },
+        {
+            "_com_grubhub_android_logcat_iter_0_rn3.txt": [
+                3.8725052129877873,
+                235,
+                60.412
+            ]
+        },
+        {
+            "_com_grubhub_android_logcat_iter_1_rn2.txt": [
+                34.7672362993518,
+                237,
+                6.762
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_jardogs_fmhmobile_022ACF43FBFFF614E47084CB7B422C9DAB939A73E09504E0FBE25BE246081CAE.apk/logcat": [
+        8,
+        {
+            "_com_jardogs_fmhmobile_logcat_iter_1_rn2.txt": [
+                1.1242711846680786,
+                87,
+                76.494
+            ]
+        },
+        {
+            "_com_jardogs_fmhmobile_logcat_iter_1_rn3.txt": [
+                1.2004801920768307,
+                77,
+                63.3
+            ]
+        },
+        {
+            "_com_jardogs_fmhmobile_logcat_iter_0_rn2.txt": [
+                1.0468493212364078,
+                94,
+                88.826
+            ]
+        },
+        {
+            "_com_jardogs_fmhmobile_logcat_iter_0_rn1.txt": [
+                5.6417489421720735,
+                45,
+                7.799
+            ]
+        },
+        {
+            "_com_jardogs_fmhmobile_logcat_iter_1_rn4.txt": [
+                1.2313477299508786,
+                94,
+                75.517
+            ]
+        },
+        {
+            "_com_jardogs_fmhmobile_logcat_iter_0_rn3.txt": [
+                39.12716328066215,
+                53,
+                1.323
+            ]
+        },
+        {
+            "_com_jardogs_fmhmobile_logcat_iter_0_rn4.txt": [
+                1.1722046825669719,
+                76,
+                63.978
+            ]
+        },
+        {
+            "_com_jardogs_fmhmobile_logcat_iter_1_rn1.txt": [
+                1.5378761454799126,
+                98,
+                63.052
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/absworkout_bellyfatworkout_waistworkout_abdominalworkout_3B46E4BCD6DC25CFFB8044129D59B749EDAC7AE0ADD37A82B7CC28677F322277.apk/logcat": [
+        8,
+        {
+            "_absworkout_bellyfatworkout_waistworkout_abdominalworkout_logcat_iter_1_rn1.txt": [
+                11.992005329780147,
+                145,
+                12.008
+            ]
+        },
+        {
+            "_absworkout_bellyfatworkout_waistworkout_abdominalworkout_logcat_iter_0_rn4.txt": [
+                11.829884308293956,
+                364,
+                30.685
+            ]
+        },
+        {
+            "_absworkout_bellyfatworkout_waistworkout_abdominalworkout_logcat_iter_1_rn4.txt": [
+                4.091754494730316,
+                133,
+                32.26
+            ]
+        },
+        {
+            "_absworkout_bellyfatworkout_waistworkout_abdominalworkout_logcat_iter_0_rn1.txt": [
+                5.5173498741459905,
+                492,
+                88.992
+            ]
+        },
+        {
+            "_absworkout_bellyfatworkout_waistworkout_abdominalworkout_logcat_iter_1_rn3.txt": [
+                2.4427947098227065,
+                129,
+                52.399
+            ]
+        },
+        {
+            "_absworkout_bellyfatworkout_waistworkout_abdominalworkout_logcat_iter_1_rn2.txt": [
+                9.71022249407447,
+                128,
+                13.079
+            ]
+        },
+        {
+            "_absworkout_bellyfatworkout_waistworkout_abdominalworkout_logcat_iter_0_rn3.txt": [
+                12.434895833333334,
+                383,
+                30.72
+            ]
+        },
+        {
+            "_absworkout_bellyfatworkout_waistworkout_abdominalworkout_logcat_iter_0_rn2.txt": [
+                12.039127163280662,
+                369,
+                30.567
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/ru_hh_android_15CE5D3721ED9E7621287C06ECB584DA1A3CE17EAC8566CE9EC0257575CEF190.apk/logcat": [
+        8,
+        {
+            "_ru_hh_android_logcat_iter_0_rn4.txt": [
+                1.027885053082921,
+                71,
+                68.085
+            ]
+        },
+        {
+            "_ru_hh_android_logcat_iter_1_rn4.txt": [
+                0.8725791986814359,
+                73,
+                82.504
+            ]
+        },
+        {
+            "_ru_hh_android_logcat_iter_1_rn2.txt": [
+                0.7952152681331482,
+                72,
+                89.276
+            ]
+        },
+        {
+            "_ru_hh_android_logcat_iter_1_rn1.txt": [
+                0.8687104222389869,
+                77,
+                87.478
+            ]
+        },
+        {
+            "_ru_hh_android_logcat_iter_0_rn3.txt": [
+                1.0137517630465445,
+                70,
+                68.058
+            ]
+        },
+        {
+            "_ru_hh_android_logcat_iter_0_rn2.txt": [
+                1.0845033267872322,
+                75,
+                68.216
+            ]
+        },
+        {
+            "_ru_hh_android_logcat_iter_0_rn1.txt": [
+                5.415055043141922,
+                92,
+                16.769
+            ]
+        },
+        {
+            "_ru_hh_android_logcat_iter_1_rn3.txt": [
+                0.8912769452119329,
+                71,
+                78.533
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/net_one97_paytm_0A2E57E319F0CAAA9D87173695ADFF34D6D53C8CB6969839D1568AEC7A23CF08.apk/logcat": [
+        1,
+        {
+            "_net_one97_paytm_logcat_iter_0_rn1.txt": [
+                8.906741180579811,
+                103,
+                11.448
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_creative_Learn_to_draw_flowers_4FC827A42686259004DCE337C6FABDD3B59FBD4C3C3EA5B49EE28D60939EFF6C.apk/logcat": [
+        8,
+        {
+            "_com_creative_Learn_to_draw_flowers_logcat_iter_0_rn1.txt": [
+                8.750932430777453,
+                787,
+                89.775
+            ]
+        },
+        {
+            "_com_creative_Learn_to_draw_flowers_logcat_iter_1_rn3.txt": [
+                9.649200908160086,
+                868,
+                89.838
+            ]
+        },
+        {
+            "_com_creative_Learn_to_draw_flowers_logcat_iter_0_rn2.txt": [
+                280.05328005328005,
+                842,
+                2.977
+            ]
+        },
+        {
+            "_com_creative_Learn_to_draw_flowers_logcat_iter_1_rn1.txt": [
+                6.681215376867551,
+                598,
+                89.343
+            ]
+        },
+        {
+            "_com_creative_Learn_to_draw_flowers_logcat_iter_0_rn4.txt": [
+                10.206253711110364,
+                912,
+                89.251
+            ]
+        },
+        {
+            "_com_creative_Learn_to_draw_flowers_logcat_iter_1_rn4.txt": [
+                7.9962691660221115,
+                704,
+                87.91
+            ]
+        },
+        {
+            "_com_creative_Learn_to_draw_flowers_logcat_iter_0_rn3.txt": [
+                8.926058914240047,
+                794,
+                88.841
+            ]
+        },
+        {
+            "_com_creative_Learn_to_draw_flowers_logcat_iter_1_rn2.txt": [
+                7.853462049101015,
+                699,
+                88.878
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/homeworkout_homeworkouts_noequipment_039A820B3FCD4ABCBD5A2FBA60F873AA22C60CB4C7D6324A8C2E3F3A900A07AF.apk/logcat": [
+        8,
+        {
+            "_homeworkout_homeworkouts_noequipment_logcat_iter_1_rn3.txt": [
+                8.989279075097405,
+                707,
+                78.538
+            ]
+        },
+        {
+            "_homeworkout_homeworkouts_noequipment_logcat_iter_0_rn1.txt": [
+                13.107899583533824,
+                791,
+                60.269
+            ]
+        },
+        {
+            "_homeworkout_homeworkouts_noequipment_logcat_iter_0_rn4.txt": [
+                20.431425070526885,
+                718,
+                35.085
+            ]
+        },
+        {
+            "_homeworkout_homeworkouts_noequipment_logcat_iter_1_rn2.txt": [
+                22.442371196819597,
+                701,
+                31.191
+            ]
+        },
+        {
+            "_homeworkout_homeworkouts_noequipment_logcat_iter_1_rn4.txt": [
+                22.41649854292759,
+                701,
+                31.227
+            ]
+        },
+        {
+            "_homeworkout_homeworkouts_noequipment_logcat_iter_0_rn3.txt": [
+                39.699248120300744,
+                661,
+                16.617
+            ]
+        },
+        {
+            "_homeworkout_homeworkouts_noequipment_logcat_iter_0_rn2.txt": [
+                20.505361624458132,
+                720,
+                34.364
+            ]
+        },
+        {
+            "_homeworkout_homeworkouts_noequipment_logcat_iter_1_rn1.txt": [
+                22.21654749744637,
+                697,
+                31.316
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/pcm_art_heart_camera_54EE7069B8252254BC94297BB6798E48E01CB14E43556CFA49C216627F532690.apk/logcat": [
+        8,
+        {
+            "_pcm_art_heart_camera_logcat_iter_0_rn1.txt": [
+                5.218317358892439,
+                442,
+                84.51
+            ]
+        },
+        {
+            "_pcm_art_heart_camera_logcat_iter_1_rn1.txt": [
+                23.784434743338853,
+                317,
+                13.286
+            ]
+        },
+        {
+            "_pcm_art_heart_camera_logcat_iter_0_rn3.txt": [
+                5.48590307826966,
+                446,
+                81.117
+            ]
+        },
+        {
+            "_pcm_art_heart_camera_logcat_iter_1_rn4.txt": [
+                4.783266004114105,
+                387,
+                80.698
+            ]
+        },
+        {
+            "_pcm_art_heart_camera_logcat_iter_0_rn2.txt": [
+                6.1471127011642634,
+                501,
+                81.339
+            ]
+        },
+        {
+            "_pcm_art_heart_camera_logcat_iter_0_rn4.txt": [
+                5.447050740995191,
+                445,
+                81.512
+            ]
+        },
+        {
+            "_pcm_art_heart_camera_logcat_iter_1_rn2.txt": [
+                34.48688779786852,
+                289,
+                8.351
+            ]
+        },
+        {
+            "_pcm_art_heart_camera_logcat_iter_1_rn3.txt": [
+                5.384567555804266,
+                434,
+                80.415
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_jkfantasy_camera_jkpmirrorcamera_235F8EB5C09DAC6B9020153146D6FEFCAB26700B08E990A655FD2AEC0D78DD4B.apk/logcat": [
+        6,
+        {
+            "_com_jkfantasy_camera_jkpmirrorcamera_logcat_iter_1_rn1.txt": [
+                8.536451471234079,
+                312,
+                36.426
+            ]
+        },
+        {
+            "_com_jkfantasy_camera_jkpmirrorcamera_logcat_iter_0_rn4.txt": [
+                5.9001295150381345,
+                206,
+                34.745
+            ]
+        },
+        {
+            "_com_jkfantasy_camera_jkpmirrorcamera_logcat_iter_1_rn3.txt": [
+                3.4093504290235233,
+                210,
+                61.302
+            ]
+        },
+        {
+            "_com_jkfantasy_camera_jkpmirrorcamera_logcat_iter_0_rn3.txt": [
+                5.254827477049699,
+                167,
+                31.59
+            ]
+        },
+        {
+            "_com_jkfantasy_camera_jkpmirrorcamera_logcat_iter_0_rn1.txt": [
+                10.933965312937628,
+                204,
+                18.566
+            ]
+        },
+        {
+            "_com_jkfantasy_camera_jkpmirrorcamera_logcat_iter_1_rn2.txt": [
+                9.145332571222285,
+                305,
+                33.231
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_edjing_edjingdjturntable_0D65EEF794C4FDCBB495845BFC02DB3A71DD7F4E757C6A66D0CBA86135749CC2.apk/logcat": [
+        1,
+        {
+            "_com_edjing_edjingdjturntable_logcat_iter_0_rn1.txt": [
+                20.626289143071443,
+                111,
+                5.333
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_msf_kbank_mobile_4EF91FFA1FCF2093A9AD4E0A9E1ABAE383122C05E44EE68B7D9F928C6D2E9C1B.apk/logcat": [
+        1,
+        {
+            "_com_msf_kbank_mobile_logcat_iter_0_rn2.txt": [
+                23.66722448003825,
+                100,
+                4.183
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/buttocksworkout_hipsworkouts_forwomen_legworkout_30B82728D873625DC0F719940D101BB4B00715F52EE25B72FD7AA88148B8326E.apk/logcat": [
+        8,
+        {
+            "_buttocksworkout_hipsworkouts_forwomen_legworkout_logcat_iter_1_rn3.txt": [
+                5.378048935171679,
+                425,
+                78.837
+            ]
+        },
+        {
+            "_buttocksworkout_hipsworkouts_forwomen_legworkout_logcat_iter_0_rn4.txt": [
+                8.463881039260336,
+                618,
+                72.828
+            ]
+        },
+        {
+            "_buttocksworkout_hipsworkouts_forwomen_legworkout_logcat_iter_0_rn1.txt": [
+                6.083458047462634,
+                314,
+                51.451
+            ]
+        },
+        {
+            "_buttocksworkout_hipsworkouts_forwomen_legworkout_logcat_iter_1_rn2.txt": [
+                5.226737338044758,
+                427,
+                81.504
+            ]
+        },
+        {
+            "_buttocksworkout_hipsworkouts_forwomen_legworkout_logcat_iter_0_rn3.txt": [
+                8.277289187790998,
+                625,
+                69.043
+            ]
+        },
+        {
+            "_buttocksworkout_hipsworkouts_forwomen_legworkout_logcat_iter_1_rn4.txt": [
+                4.771451013493711,
+                408,
+                85.299
+            ]
+        },
+        {
+            "_buttocksworkout_hipsworkouts_forwomen_legworkout_logcat_iter_0_rn2.txt": [
+                7.585532192431481,
+                536,
+                70.463
+            ]
+        },
+        {
+            "_buttocksworkout_hipsworkouts_forwomen_legworkout_logcat_iter_1_rn1.txt": [
+                5.132064298844052,
+                417,
+                81.059
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_discord_0710C7680DDF8FFD97F4C50EA56B7CC3544B52A58B862A0256985FC15C0AF158.apk/logcat": [
+        8,
+        {
+            "_com_discord_logcat_iter_1_rn2.txt": [
+                11.985612532241653,
+                1014,
+                84.5
+            ]
+        },
+        {
+            "_com_discord_logcat_iter_0_rn2.txt": [
+                14.716950916806791,
+                920,
+                62.425
+            ]
+        },
+        {
+            "_com_discord_logcat_iter_0_rn3.txt": [
+                14.778796333200477,
+                928,
+                62.725
+            ]
+        },
+        {
+            "_com_discord_logcat_iter_1_rn1.txt": [
+                11.963672008786743,
+                1014,
+                84.651
+            ]
+        },
+        {
+            "_com_discord_logcat_iter_1_rn4.txt": [
+                11.992194429661167,
+                1015,
+                84.553
+            ]
+        },
+        {
+            "_com_discord_logcat_iter_0_rn4.txt": [
+                14.601426921677502,
+                924,
+                63.203
+            ]
+        },
+        {
+            "_com_discord_logcat_iter_0_rn1.txt": [
+                10.584757372557503,
+                735,
+                69.345
+            ]
+        },
+        {
+            "_com_discord_logcat_iter_1_rn3.txt": [
+                11.97124068805119,
+                1015,
+                84.693
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_perfectcorp_ycn_2F81D040FFD25919C23009331D4878E933C67530A445C546802D4408AB8F4B93.apk/logcat": [
+        7,
+        {
+            "_com_perfectcorp_ycn_logcat_iter_0_rn4.txt": [
+                3.848959210009538,
+                344,
+                89.107
+            ]
+        },
+        {
+            "_com_perfectcorp_ycn_logcat_iter_0_rn2.txt": [
+                3.8015971206838373,
+                339,
+                88.91
+            ]
+        },
+        {
+            "_com_perfectcorp_ycn_logcat_iter_0_rn3.txt": [
+                3.753441591279429,
+                335,
+                88.951
+            ]
+        },
+        {
+            "_com_perfectcorp_ycn_logcat_iter_0_rn1.txt": [
+                3.688501546246837,
+                329,
+                88.901
+            ]
+        },
+        {
+            "_com_perfectcorp_ycn_logcat_iter_1_rn2.txt": [
+                2.9907253909225324,
+                268,
+                89.26
+            ]
+        },
+        {
+            "_com_perfectcorp_ycn_logcat_iter_1_rn3.txt": [
+                2.9841670232652415,
+                266,
+                88.8
+            ]
+        },
+        {
+            "_com_perfectcorp_ycn_logcat_iter_1_rn4.txt": [
+                3.025957749500378,
+                269,
+                88.561
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_adpog_diary_C44138FB90132C9997042A9B9F19F5321E1CB9FBA632D4D0E94DAA6D5D82ADE6.apk/logcat": [
+        7,
+        {
+            "_com_adpog_diary_logcat_iter_1_rn4.txt": [
+                178.5063752276867,
+                99,
+                0.549
+            ]
+        },
+        {
+            "_com_adpog_diary_logcat_iter_1_rn1.txt": [
+                4.00317551475432,
+                238,
+                59.203
+            ]
+        },
+        {
+            "_com_adpog_diary_logcat_iter_1_rn2.txt": [
+                2.7575747130398813,
+                241,
+                87.033
+            ]
+        },
+        {
+            "_com_adpog_diary_logcat_iter_0_rn2.txt": [
+                7.969553054453191,
+                246,
+                30.742
+            ]
+        },
+        {
+            "_com_adpog_diary_logcat_iter_1_rn3.txt": [
+                7.926710415177701,
+                245,
+                30.782
+            ]
+        },
+        {
+            "_com_adpog_diary_logcat_iter_0_rn4.txt": [
+                23.900672529746508,
+                232,
+                9.665
+            ]
+        },
+        {
+            "_com_adpog_diary_logcat_iter_0_rn3.txt": [
+                7.76968212005932,
+                242,
+                31.018
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_littlecaesars_0FC98C36BED95ECA2423A89662FF2A75092354C35873A7D647C59BCB0EFA5F03.apk/logcat": [
+        8,
+        {
+            "_com_littlecaesars_logcat_iter_1_rn2.txt": [
+                0.7383966244725738,
+                43,
+                56.88
+            ]
+        },
+        {
+            "_com_littlecaesars_logcat_iter_0_rn1.txt": [
+                0.7161613750298401,
+                46,
+                62.835
+            ]
+        },
+        {
+            "_com_littlecaesars_logcat_iter_0_rn2.txt": [
+                74.54545454545455,
+                42,
+                0.55
+            ]
+        },
+        {
+            "_com_littlecaesars_logcat_iter_1_rn3.txt": [
+                0.7587253414264037,
+                44,
+                56.668
+            ]
+        },
+        {
+            "_com_littlecaesars_logcat_iter_0_rn3.txt": [
+                0.7448596026260632,
+                44,
+                57.729
+            ]
+        },
+        {
+            "_com_littlecaesars_logcat_iter_1_rn4.txt": [
+                50.25125628140703,
+                41,
+                0.796
+            ]
+        },
+        {
+            "_com_littlecaesars_logcat_iter_1_rn1.txt": [
+                64.51612903225806,
+                43,
+                0.651
+            ]
+        },
+        {
+            "_com_littlecaesars_logcat_iter_0_rn4.txt": [
+                0.709957567652352,
+                44,
+                60.567
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_zoosk_zoosk_03A55B2449161943046F826B0FF5030CD7B34302A3F26B89921389BBF7835F76.apk/logcat": [
+        1,
+        {
+            "_com_zoosk_zoosk_logcat_iter_0_rn1.txt": [
+                104.49545671927307,
+                438,
+                4.176
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/ru_gibdd_pay_app_2098F1F73228483A09D5E33B7D74CFAB0E776F24183DEF82C484C2F3ED016AD6.apk/logcat": [
+        8,
+        {
+            "_ru_gibdd_pay_app_logcat_iter_1_rn3.txt": [
+                97.74229074889868,
+                356,
+                3.632
+            ]
+        },
+        {
+            "_ru_gibdd_pay_app_logcat_iter_0_rn4.txt": [
+                105.68065506653018,
+                414,
+                3.904
+            ]
+        },
+        {
+            "_ru_gibdd_pay_app_logcat_iter_1_rn4.txt": [
+                147.5785340314136,
+                452,
+                3.052
+            ]
+        },
+        {
+            "_ru_gibdd_pay_app_logcat_iter_0_rn1.txt": [
+                6.312951272312459,
+                488,
+                77.139
+            ]
+        },
+        {
+            "_ru_gibdd_pay_app_logcat_iter_1_rn1.txt": [
+                96.4712578258395,
+                340,
+                3.514
+            ]
+        },
+        {
+            "_ru_gibdd_pay_app_logcat_iter_0_rn2.txt": [
+                152.02702702702703,
+                451,
+                2.96
+            ]
+        },
+        {
+            "_ru_gibdd_pay_app_logcat_iter_1_rn2.txt": [
+                126.58227848101265,
+                451,
+                3.555
+            ]
+        },
+        {
+            "_ru_gibdd_pay_app_logcat_iter_0_rn3.txt": [
+                102.92494481236203,
+                374,
+                3.624
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_scee_psxandroid_248FF0F038E11D870BD21045E21EBA0ADFB961172ACD2C20AD45162B4D5E2FAD.apk/logcat": [
+        7,
+        {
+            "_com_scee_psxandroid_logcat_iter_0_rn3.txt": [
+                2.96721873485359,
+                252,
+                84.577
+            ]
+        },
+        {
+            "_com_scee_psxandroid_logcat_iter_0_rn2.txt": [
+                2.7902545256567306,
+                247,
+                88.158
+            ]
+        },
+        {
+            "_com_scee_psxandroid_logcat_iter_1_rn1.txt": [
+                3.8852265851406003,
+                245,
+                62.802
+            ]
+        },
+        {
+            "_com_scee_psxandroid_logcat_iter_1_rn3.txt": [
+                3.8284839203675345,
+                241,
+                62.682
+            ]
+        },
+        {
+            "_com_scee_psxandroid_logcat_iter_0_rn1.txt": [
+                2.770083102493075,
+                256,
+                92.055
+            ]
+        },
+        {
+            "_com_scee_psxandroid_logcat_iter_1_rn4.txt": [
+                3.8613118886921005,
+                243,
+                62.663
+            ]
+        },
+        {
+            "_com_scee_psxandroid_logcat_iter_1_rn2.txt": [
+                3.9036359580637967,
+                246,
+                62.752
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_autoscout24_003502146593B3AC6B482ED6C89A029875296775882FADE9BCF9D3A70F9C1352.apk/logcat": [
+        8,
+        {
+            "_com_autoscout24_logcat_iter_1_rn4.txt": [
+                0.9973140519283296,
+                89,
+                88.219
+            ]
+        },
+        {
+            "_com_autoscout24_logcat_iter_1_rn1.txt": [
+                0.9104462324596844,
+                81,
+                87.869
+            ]
+        },
+        {
+            "_com_autoscout24_logcat_iter_0_rn1.txt": [
+                1.1976306334495,
+                112,
+                92.683
+            ]
+        },
+        {
+            "_com_autoscout24_logcat_iter_0_rn2.txt": [
+                1.290897459331018,
+                114,
+                87.536
+            ]
+        },
+        {
+            "_com_autoscout24_logcat_iter_1_rn3.txt": [
+                25.872689938398356,
+                64,
+                2.423
+            ]
+        },
+        {
+            "_com_autoscout24_logcat_iter_0_rn3.txt": [
+                12.736825346282439,
+                81,
+                6.281
+            ]
+        },
+        {
+            "_com_autoscout24_logcat_iter_1_rn2.txt": [
+                0.9190655032734617,
+                82,
+                88.127
+            ]
+        },
+        {
+            "_com_autoscout24_logcat_iter_0_rn4.txt": [
+                1.2705284457202015,
+                109,
+                84.998
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_cabify_rider_00805E3AA36411DC2D6883CD3CC71AC9CFA19624FF45FE6C897D02983CE937C2.apk/logcat": [
+        8,
+        {
+            "_com_cabify_rider_logcat_iter_0_rn4.txt": [
+                35.97944031981725,
+                127,
+                3.502
+            ]
+        },
+        {
+            "_com_cabify_rider_logcat_iter_0_rn1.txt": [
+                1.9456326755898992,
+                142,
+                72.452
+            ]
+        },
+        {
+            "_com_cabify_rider_logcat_iter_1_rn3.txt": [
+                36.87362117869524,
+                118,
+                3.173
+            ]
+        },
+        {
+            "_com_cabify_rider_logcat_iter_0_rn2.txt": [
+                1.9799802001979978,
+                145,
+                72.718
+            ]
+        },
+        {
+            "_com_cabify_rider_logcat_iter_1_rn4.txt": [
+                27.649769585253456,
+                109,
+                3.868
+            ]
+        },
+        {
+            "_com_cabify_rider_logcat_iter_1_rn1.txt": [
+                2.896245079442779,
+                143,
+                49.001
+            ]
+        },
+        {
+            "_com_cabify_rider_logcat_iter_0_rn3.txt": [
+                2.063245347381742,
+                151,
+                72.669
+            ]
+        },
+        {
+            "_com_cabify_rider_logcat_iter_1_rn2.txt": [
+                28.61912711662294,
+                121,
+                4.189
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_ipsy_mobile_production_B0B51C9A569BD103C68310FE4C0FFF556DAE11FAD0ACB148CEE51369D9688D72.apk/logcat": [
+        2,
+        {
+            "_com_ipsy_mobile_production_logcat_iter_0_rn1.txt": [
+                94.30255402750491,
+                49,
+                0.509
+            ]
+        },
+        {
+            "_com_ipsy_mobile_production_logcat_iter_0_rn2.txt": [
+                508.7719298245614,
+                59,
+                0.114
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_zillow_android_zillowmap_014D0047447971F3E3E8BC38CB39F34DFFF52F5CCF72F29BC8CB6CA9CA9D9EAA.apk/logcat": [
+        1,
+        {
+            "_com_zillow_android_zillowmap_logcat_iter_0_rn1.txt": [
+                8.784213876511776,
+                139,
+                15.71
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_appxstudio_smokearteffect_308616854D32B1EA1BB4DDAA060717ECAFF00F38272185F6846E3680AEB28E11.apk/logcat": [
+        7,
+        {
+            "_com_appxstudio_smokearteffect_logcat_iter_1_rn3.txt": [
+                0.8409473157870813,
+                75,
+                87.996
+            ]
+        },
+        {
+            "_com_appxstudio_smokearteffect_logcat_iter_1_rn4.txt": [
+                0.7435698110656708,
+                67,
+                88.761
+            ]
+        },
+        {
+            "_com_appxstudio_smokearteffect_logcat_iter_0_rn4.txt": [
+                1.805228716031076,
+                57,
+                31.021
+            ]
+        },
+        {
+            "_com_appxstudio_smokearteffect_logcat_iter_0_rn3.txt": [
+                1.9129137891904158,
+                60,
+                30.843
+            ]
+        },
+        {
+            "_com_appxstudio_smokearteffect_logcat_iter_0_rn1.txt": [
+                0.7337962455917465,
+                68,
+                91.306
+            ]
+        },
+        {
+            "_com_appxstudio_smokearteffect_logcat_iter_1_rn1.txt": [
+                11.633875106928999,
+                69,
+                5.845
+            ]
+        },
+        {
+            "_com_appxstudio_smokearteffect_logcat_iter_1_rn2.txt": [
+                0.7282575300690707,
+                65,
+                87.877
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_atpc_00D69CEE18576DD9DACD94F32889BF789FAF6EC18A327D60263DFE1E4C34F027.apk/logcat": [
+        3,
+        {
+            "_com_atpc_logcat_iter_0_rn2.txt": [
+                456.6787003610108,
+                254,
+                0.554
+            ]
+        },
+        {
+            "_com_atpc_logcat_iter_0_rn4.txt": [
+                454.5454545454545,
+                256,
+                0.561
+            ]
+        },
+        {
+            "_com_atpc_logcat_iter_0_rn1.txt": [
+                2.7282128005984467,
+                249,
+                90.902
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/splendid_logomaker_designer_3C812BF7193DD97980F58F8C21DC60C4B1C77C7E7BFC78EBC405BA3A70D1E8D6.apk/logcat": [
+        7,
+        {
+            "_splendid_logomaker_designer_logcat_iter_0_rn3.txt": [
+                37.03703703703704,
+                105,
+                2.808
+            ]
+        },
+        {
+            "_splendid_logomaker_designer_logcat_iter_1_rn2.txt": [
+                34.8791121680539,
+                89,
+                2.523
+            ]
+        },
+        {
+            "_splendid_logomaker_designer_logcat_iter_0_rn2.txt": [
+                22.298006295907662,
+                86,
+                3.812
+            ]
+        },
+        {
+            "_splendid_logomaker_designer_logcat_iter_0_rn1.txt": [
+                1.3045526471547464,
+                109,
+                82.775
+            ]
+        },
+        {
+            "_splendid_logomaker_designer_logcat_iter_0_rn4.txt": [
+                37.10374639769452,
+                104,
+                2.776
+            ]
+        },
+        {
+            "_splendid_logomaker_designer_logcat_iter_1_rn4.txt": [
+                33.333333333333336,
+                89,
+                2.64
+            ]
+        },
+        {
+            "_splendid_logomaker_designer_logcat_iter_1_rn1.txt": [
+                32.00595459620394,
+                87,
+                2.687
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_sweetsugar_pencileffectfree_623F37A8F0822662379CF062BDEFAAF7F4172C21AB5CE0CF5E194DA237DA022D.apk/logcat": [
+        8,
+        {
+            "_com_sweetsugar_pencileffectfree_logcat_iter_0_rn2.txt": [
+                4.016466081587147,
+                282,
+                69.952
+            ]
+        },
+        {
+            "_com_sweetsugar_pencileffectfree_logcat_iter_0_rn4.txt": [
+                27.210031347962378,
+                218,
+                7.975
+            ]
+        },
+        {
+            "_com_sweetsugar_pencileffectfree_logcat_iter_1_rn4.txt": [
+                2.9000048945230286,
+                238,
+                81.714
+            ]
+        },
+        {
+            "_com_sweetsugar_pencileffectfree_logcat_iter_0_rn1.txt": [
+                3.3640747515317413,
+                264,
+                78.167
+            ]
+        },
+        {
+            "_com_sweetsugar_pencileffectfree_logcat_iter_1_rn3.txt": [
+                28.080304421991865,
+                215,
+                7.621
+            ]
+        },
+        {
+            "_com_sweetsugar_pencileffectfree_logcat_iter_0_rn3.txt": [
+                3.1987969464870583,
+                252,
+                78.461
+            ]
+        },
+        {
+            "_com_sweetsugar_pencileffectfree_logcat_iter_1_rn2.txt": [
+                27.99437555924837,
+                220,
+                7.815
+            ]
+        },
+        {
+            "_com_sweetsugar_pencileffectfree_logcat_iter_1_rn1.txt": [
+                3.187170374492519,
+                253,
+                79.051
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/mydiary_journal_diary_diarywithlock_diaryjournal_secretdiary_0A205132A747F5814DC80B42B10C07310C7060A4689223239C913E7056DDC81A.apk/logcat": [
+        8,
+        {
+            "_mydiary_journal_diary_diarywithlock_diaryjournal_secretdiary_logcat_iter_0_rn4.txt": [
+                447.56179024716096,
+                1341,
+                2.966
+            ]
+        },
+        {
+            "_mydiary_journal_diary_diarywithlock_diaryjournal_secretdiary_logcat_iter_0_rn3.txt": [
+                86.16429894996912,
+                1396,
+                15.604
+            ]
+        },
+        {
+            "_mydiary_journal_diary_diarywithlock_diaryjournal_secretdiary_logcat_iter_0_rn1.txt": [
+                83.6172374633913,
+                1400,
+                14.561
+            ]
+        },
+        {
+            "_mydiary_journal_diary_diarywithlock_diaryjournal_secretdiary_logcat_iter_1_rn2.txt": [
+                52.157037156835,
+                1291,
+                24.697
+            ]
+        },
+        {
+            "_mydiary_journal_diary_diarywithlock_diaryjournal_secretdiary_logcat_iter_1_rn1.txt": [
+                44.91485705358538,
+                1151,
+                25.59
+            ]
+        },
+        {
+            "_mydiary_journal_diary_diarywithlock_diaryjournal_secretdiary_logcat_iter_0_rn2.txt": [
+                70.9933944718784,
+                1108,
+                15.583
+            ]
+        },
+        {
+            "_mydiary_journal_diary_diarywithlock_diaryjournal_secretdiary_logcat_iter_1_rn4.txt": [
+                109.32537773072852,
+                1137,
+                10.357
+            ]
+        },
+        {
+            "_mydiary_journal_diary_diarywithlock_diaryjournal_secretdiary_logcat_iter_1_rn3.txt": [
+                118.99425007309229,
+                1222,
+                9.221
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_lezhin_comics_06FC736A88EFB1E8A64660ECF0C0C9F5E119AB9650EFD5095BE769163A92CA70.apk/logcat": [
+        8,
+        {
+            "_com_lezhin_comics_logcat_iter_1_rn1.txt": [
+                95.15905947441217,
+                345,
+                3.615
+            ]
+        },
+        {
+            "_com_lezhin_comics_logcat_iter_1_rn3.txt": [
+                86.76028084252758,
+                347,
+                3.988
+            ]
+        },
+        {
+            "_com_lezhin_comics_logcat_iter_1_rn4.txt": [
+                101.72365074879909,
+                361,
+                3.539
+            ]
+        },
+        {
+            "_com_lezhin_comics_logcat_iter_0_rn4.txt": [
+                111.28095383674716,
+                365,
+                3.271
+            ]
+        },
+        {
+            "_com_lezhin_comics_logcat_iter_0_rn1.txt": [
+                41.02436598707111,
+                331,
+                8.044
+            ]
+        },
+        {
+            "_com_lezhin_comics_logcat_iter_0_rn3.txt": [
+                94.33465085638998,
+                359,
+                3.795
+            ]
+        },
+        {
+            "_com_lezhin_comics_logcat_iter_0_rn2.txt": [
+                123.26916582235732,
+                366,
+                2.961
+            ]
+        },
+        {
+            "_com_lezhin_comics_logcat_iter_1_rn2.txt": [
+                93.46759617867286,
+                363,
+                3.873
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_binance_dev_067DA6A399160EF7EA7B3CF93BDF2FBE08E54BCC294166229B05687EDE9BDF4D.apk/logcat": [
+        8,
+        {
+            "_com_binance_dev_logcat_iter_1_rn3.txt": [
+                4.492352712558012,
+                394,
+                87.474
+            ]
+        },
+        {
+            "_com_binance_dev_logcat_iter_1_rn4.txt": [
+                4.6860891728481135,
+                411,
+                87.493
+            ]
+        },
+        {
+            "_com_binance_dev_logcat_iter_0_rn4.txt": [
+                5.979828263242793,
+                368,
+                61.351
+            ]
+        },
+        {
+            "_com_binance_dev_logcat_iter_0_rn2.txt": [
+                6.183716756403981,
+                380,
+                61.278
+            ]
+        },
+        {
+            "_com_binance_dev_logcat_iter_1_rn1.txt": [
+                4.289040011926742,
+                375,
+                87.193
+            ]
+        },
+        {
+            "_com_binance_dev_logcat_iter_0_rn1.txt": [
+                4.294553222575182,
+                389,
+                90.339
+            ]
+        },
+        {
+            "_com_binance_dev_logcat_iter_0_rn3.txt": [
+                6.0949773475440825,
+                375,
+                61.362
+            ]
+        },
+        {
+            "_com_binance_dev_logcat_iter_1_rn2.txt": [
+                4.731914510077852,
+                421,
+                88.743
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/com_brave_browser_04429BA86F99781AE9330A3820042B4CB09B31E6D8978836D6BE3AA06803CAEC.apk/logcat": [
+        8,
+        {
+            "_com_brave_browser_logcat_iter_0_rn3.txt": [
+                1.6225228551926327,
+                146,
+                89.367
+            ]
+        },
+        {
+            "_com_brave_browser_logcat_iter_0_rn2.txt": [
+                2.1058730459392305,
+                190,
+                89.749
+            ]
+        },
+        {
+            "_com_brave_browser_logcat_iter_0_rn1.txt": [
+                1.8990805017005892,
+                178,
+                93.203
+            ]
+        },
+        {
+            "_com_brave_browser_logcat_iter_1_rn2.txt": [
+                2.177108934002177,
+                195,
+                89.109
+            ]
+        },
+        {
+            "_com_brave_browser_logcat_iter_1_rn3.txt": [
+                2.1797127774308906,
+                193,
+                88.085
+            ]
+        },
+        {
+            "_com_brave_browser_logcat_iter_1_rn1.txt": [
+                2.1825263582029417,
+                196,
+                89.346
+            ]
+        },
+        {
+            "_com_brave_browser_logcat_iter_0_rn4.txt": [
+                1.674858512769428,
+                154,
+                91.351
+            ]
+        },
+        {
+            "_com_brave_browser_logcat_iter_1_rn4.txt": [
+                2.120818997123357,
+                189,
+                88.645
+            ]
+        }
+    ],
+    "/logs_cd_year1_benign/co_hinge_app_0042CAABE8C137E433118B23D5F679975E116014431E9CB2D69F297BCE83259E.apk/logcat": [
+        8,
+        {
+            "_co_hinge_app_logcat_iter_1_rn2.txt": [
+                67.4931129476584,
+                99,
+                1.432
+            ]
+        },
+        {
+            "_co_hinge_app_logcat_iter_1_rn4.txt": [
+                80.2919708029197,
+                100,
+                1.227
+            ]
+        },
+        {
+            "_co_hinge_app_logcat_iter_0_rn4.txt": [
+                85.27827648114902,
+                96,
+                1.1
+            ]
+        },
+        {
+            "_co_hinge_app_logcat_iter_0_rn2.txt": [
+                109.0909090909091,
+                91,
+                0.817
+            ]
+        },
+        {
+            "_co_hinge_app_logcat_iter_1_rn3.txt": [
+                86.83729433272396,
+                96,
+                1.082
+            ]
+        },
+        {
+            "_co_hinge_app_logcat_iter_1_rn1.txt": [
+                75.51669316375198,
+                96,
+                1.252
+            ]
+        },
+        {
+            "_co_hinge_app_logcat_iter_0_rn3.txt": [
+                55.29953917050691,
+                97,
+                1.724
+            ]
+        },
+        {
+            "_co_hinge_app_logcat_iter_0_rn1.txt": [
+                48.63078375826252,
+                104,
+                2.1
+            ]
+        }
     ]
 }

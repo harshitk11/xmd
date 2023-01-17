@@ -12,6 +12,7 @@ import shutil
 import numpy as np
 import pickle
 import json
+import tqdm
 
 # Used for storing the latest list of local paths of files that should be downloaded for creating the dataset.
 timeStampCandidateLocalPathDict = None
@@ -58,11 +59,13 @@ class dataloader_generator:
                                                 'HPC_individual':{"train":True, "trainSG":False, "test":False},
                                                 'DVFS_individual':{"train":True, "trainSG":False, "test":False},
                                                 'DVFS_fusion':{"train":False, "trainSG":False, "test":False}},
+
                                     "cd-dataset":{'DVFS_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":False, "test":True},
                                                 'HPC_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":False, "test":True},
                                                 'HPC_individual':{"train":False, "trainSG":False, "test":True},
                                                 'DVFS_individual':{"train":False, "trainSG":False, "test":True},
-                                                'DVFS_fusion':{"train":False, "trainSG":False, "test":True}},
+                                                'DVFS_fusion':{"train":False, "trainSG":False, "test":False}},
+                                                
                                     "bench-dataset":{'DVFS_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":False, "test":False},
                                                     'HPC_partition_for_HPC_DVFS_fusion':{"train":False, "trainSG":False, "test":False},
                                                     'HPC_individual':{"train":True, "trainSG":False, "test":True},
@@ -124,7 +127,7 @@ class dataloader_generator:
             - train, trainSG, and test dataloader objects depending on the dataset_type
         """
 
-        print(f'[Info] Fetching dataloader objects for dataset:{dataset_type}, classification toi: {clf_toi}, channel: {file_type}\n{"-"*140}')
+        print(f'[Info] Fetching dataloader objects for classification toi: {clf_toi}, channel: {file_type}\n{"-"*100}')
     
         # Find the partitions that will be required for this dataset. required_partitions = {"train":T or F, "trainSG":T or F, "test":T or F}
         required_partitions = dataloader_generator.partition_activation_flags[dataset_type][clf_toi]
@@ -233,6 +236,7 @@ class dataloader_generator:
                         'DVFS_fusion' :                        {'all':{'partition':all_dataset_partitionDict_label[4][0],'label':all_dataset_partitionDict_label[4][1],'file_type':'dvfs'}}
                         }
         
+        print(f"\t************ Details of dataloader generation for dataset name : {dataset_type} ***************")
         # Get the dataloader for all the classification toi
         dataloaderAllClfToi = {}
         for clf_toi, partition_bin_details in select_dataset.items():
@@ -244,7 +248,14 @@ class dataloader_generator:
                                                                                             dataset_type = dataset_type, 
                                                                                             clf_toi = clf_toi, 
                                                                                             args = args)
-        
+                # if partitionDetails['partition'] is not None:
+                #     print(clf_toi,rnBin)
+                #     for partitionName, partitionDet in partitionDetails['partition'].items():
+                #         try:
+                #             print(f"{partitionName} -> {len(partitionDet)}")
+                #         except:
+                #             print(f"{partitionName} -> {None}")
+
         # ################################################################ Testing the supervised learning dataloader ################################################################
         # iter_loader = iter(dataloaderAllClfToi['DVFS_fusion']['all']['testloader'])
         # batch_spec_tensor, labels, f_paths = next(iter_loader)
@@ -351,22 +362,43 @@ class feature_engineered_dataset:
             - args : Uses args.collected_duration to calculate the list of logcat runtime thresholds
             - xmd_base_folder_location: Base folder of xmd's source code
         """
+        # Folder where the dataset is downloaded
+        datasetDownloadLoc = os.path.join(args.dataset_base_location, args.dataset_type)
+        
         global timeStampCandidateLocalPathDict
         dataset_generator_instance = dataset_generator_downloader(filter_values= [args.runtime_per_file, args.num_logcat_lines_per_file, args.freq_logcat_event_per_file], 
                                                                         dataset_type=args.dataset_type,
                                                                         base_download_dir=args.dataset_base_location)
+
+        
+        
+        # ######################################## For debugging ########################################    
+        # _,_,candidateLocalPathDict = dataset_generator_instance.generate_dataset_winter(download_file_flag=False, num_download_threads=args.num_download_threads)
+        #     # Update the timestamp list
+        # timeStampCandidateLocalPathDict = candidateLocalPathDict
+        # ###############################################################################################
             
+
         # If the dataset is not downloaded, then download the dataset
-        if not os.path.isdir(os.path.join(xmd_base_folder_location, "data", args.dataset_type)):
-            _,_,candidateLocalPathDict = dataset_generator_instance.generate_dataset(download_file_flag=args.dataset_download_flag, num_download_threads=args.num_download_threads)
+        if not os.path.isdir(datasetDownloadLoc):
+            _,_,candidateLocalPathDict = dataset_generator_instance.generate_dataset_winter(download_file_flag=args.dataset_download_flag, num_download_threads=args.num_download_threads)
             # Update the timestamp list
             timeStampCandidateLocalPathDict = candidateLocalPathDict
+            # Save the timestamp list
+            with open(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails","timeStampCandidateLocalPathDict.pkl"), 'wb') as fp:
+                pickle.dump(timeStampCandidateLocalPathDict, fp)
 
+        # Checkpointing : if timeStampCandidateLocalPathDict is None, then you need to load the previously saved list
+        elif timeStampCandidateLocalPathDict is None:
+            # Load the saved timeStampCandidateLocalPathDict
+            with open(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails","timeStampCandidateLocalPathDict.pkl"), 'rb') as fp:
+                timeStampCandidateLocalPathDict = pickle.load(fp)
+            
         # If the dataset is downloaded, then generate list of files to delete from the downloaded dataset.
-        elif os.path.isdir(os.path.join(xmd_base_folder_location, "data", args.dataset_type)):
+        elif os.path.isdir(datasetDownloadLoc):
             print("***************** Dataset already downloaded. Trimming the dataset. *****************")
             # First generate the list of candidate local paths
-            _,_,candidateLocalPathDict = dataset_generator_instance.generate_dataset(download_file_flag=False, num_download_threads=args.num_download_threads)
+            _,_,candidateLocalPathDict = dataset_generator_instance.generate_dataset_winter(download_file_flag=False, num_download_threads=args.num_download_threads)
             
             # Based on the list and the previous timestamplist, generate the list of files to be deleted from the downloaded dataset
             deleteFilePaths = {}
@@ -385,6 +417,9 @@ class feature_engineered_dataset:
 
             # Update the timestamp list with the new candidateLocalPathDict
             timeStampCandidateLocalPathDict = candidateLocalPathDict
+            # Save the timestamp list
+            with open(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails","timeStampCandidateLocalPathDict.pkl"), 'wb') as fp:
+                pickle.dump(timeStampCandidateLocalPathDict, fp)
 
         ############################ Log the info about this dataset ############################
         # Count the number of apks from the shortlisted files (This is the number of apks post logcat filter)
@@ -474,7 +509,6 @@ class feature_engineered_dataset:
                                                         fDataset=fDataset)
             fDataset = featEngineeringDriver.generate_feature_engineered_dataset_per_logcat_filter()
             #####################################################################################################################################################################
-
             # Dump the updated fDataset
             fDatasetAllDatasets[args.dataset_type] = fDataset
             with open(fAllDatasetPath,'w') as fp:
@@ -489,9 +523,8 @@ class feature_engineered_dataset:
             Updates fDataset which is a parameter of the class. Returns the updated fDataset.
         """
         for rtime in self.rtime_list:
-            print(f"----------- Generating feature engineered dataset for truncated duration : {rtime} -----------")
+            print(f"\t----------- Generating feature engineered dataset for truncated duration : {rtime} -----------")
             self.generate_feature_engineered_dataset_per_rtime_per_logcat_filter(truncated_duration=rtime)
-
         return self.fDataset
 
     def generate_feature_engineered_dataset_per_rtime_per_logcat_filter(self, truncated_duration):
@@ -510,7 +543,7 @@ class feature_engineered_dataset:
         dataloaderAllClfToi = dataloader_generator.get_dataloader_for_all_classification_tasks(all_dataset_partitionDict_label = self.all_dataset_partitionDict_label, 
                                                                                         dataset_type=self.dataset_type, 
                                                                                         args=self.args)
-
+    
         # For all clf_toi, generate the feature engineered vectors.
         for clf_toi, rn_bin_details in dataloaderAllClfToi.items():
             for rnBin, dataloaderDict in rn_bin_details.items():
@@ -518,6 +551,13 @@ class feature_engineered_dataset:
                     if dataloaderX is not None:
                         # Generate the feature engineered dataset
                         splitName = dataloaderName.replace("loader","")
+                        print(f"Generating channel bins for : {clf_toi, rnBin, splitName}")
+                        try:
+                            print(f" - Number of samples : {len(dataloaderX.dataset)} | Number of batches: {len(dataloaderX)}")
+                            # continue
+                        except:
+                            print("error in printing length")
+
                         fpathList = self.create_channel_bins(dataloaderX=dataloaderX,
                                                 truncated_duration= self.args.truncated_duration,
                                                 clf_toi=clf_toi,
@@ -525,10 +565,8 @@ class feature_engineered_dataset:
                                                 split_type=splitName)
                         
                         ## Save the paths of the created dataset to fDataset
-                        print(fpathList)
+                        # print(f"\n{fpathList}")
                         self.fDataset[self.logcat_filter_rtime_threshold][self.args.truncated_duration][clf_toi][rnBin][splitName] = fpathList
-        
-
 
     def create_channel_bins(self, dataloaderX, truncated_duration, clf_toi, rnBin, split_type):
         """
@@ -558,20 +596,26 @@ class feature_engineered_dataset:
         Returns the paths of the files where channel_bins, labels, f_paths are stored, i.e., 
         {"path_channel_bins": ... , "path_labels": ... , "path_f_paths": ... }
         """
-
-        # Dettermine the number of channels [=15 for GLOBL, and =1 for HPC]
+        # Determine the number of channels [=15 for GLOBL, and =1 for HPC]
         test_channel_bins,_,_ = next(iter(dataloaderX))
         _,num_channel_bins,_ = test_channel_bins.shape
+        
+        # import traceback
+        # try:
+        #     print(f" -  Number of batches : {sum(1 for _ in iter(dataloaderX))}")
+        # except RuntimeError:
+        #     traceback.print_exc()
         
         channel_bins = [[] for _ in range(num_channel_bins)] # Stores the reduced_feature of each channel
         labels = [] # Stores the labels of the corresponding index in the channel_bins
         f_paths = [] # Stores the file paths of the corresponding index in the channel_bins
 
-        for batch_idx,(batch_tensor, batch_labels, batch_paths) in enumerate(dataloaderX):
+        iterx = iter(dataloaderX)
+        for batch_idx,(batch_tensor, batch_labels, batch_paths) in enumerate(tqdm.tqdm(dataloaderX)):
             # Get the dimensions of the batch tensor
             B,N_ch,ft_size = batch_tensor.shape
 
-            # print(f"Shape of batch (B,N_ch,reduced_feature_size) : {batch_tensor.shape}")
+            # print(f"  [{batch_idx}] Shape of batch (B,N_ch,reduced_feature_size) : {batch_tensor.shape}")
             
             # Split the batch into individual iterations
             for iter_idx,iterx in enumerate(torch.unbind(batch_tensor,dim=0)):
@@ -619,8 +663,8 @@ class feature_engineered_dataset:
         if not os.path.isdir(saveDir):
             os.makedirs(saveDir)
 
-        print(f"*************** Results path : {saveDir} *************** ")
-        print(f" - Shape of channel_bins (N_ch, N_samples, feature_size) and corresponding labels (N_samples) : {channel_bins.shape, labels.shape} ")
+        print(f" - channel_bins stored at path : -\n {saveDir}")
+        print(f" -> Shape of channel_bins (N_ch, N_samples, feature_size) and corresponding labels (N_samples) : {channel_bins.shape, labels.shape}\n ")
         
         # Paths where files needs to be saved
         channel_bins_path = os.path.join(saveDir, f'channel_bins_{split_type}.npy')
@@ -650,7 +694,7 @@ def main_worker(args, xmd_base_folder_location):
         - xmd_base_folder_location: Location of base folder of xmd
     """
     # Generate the feature engineered dataset for all logcat runtime thresholds and truncated durations for this dataset.
-    feature_engineered_dataset.generate_feature_engineered_dataset(args, xmd_base_folder_location, featEngineerDatasetFolderName="featureEngineeredDataset1")
+    feature_engineered_dataset.generate_feature_engineered_dataset(args, xmd_base_folder_location, featEngineerDatasetFolderName="featureEngineeredDatasetWinter")
 
 
 def main():

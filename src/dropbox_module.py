@@ -319,10 +319,10 @@ def create_parser_info_for_all_datasets_usenix_winter(dbx, base_folder_location,
     # Generating parser info for STD-dataset, CD_year1_dataset, CD_year2_dataset, CD_year3_dataset
     ## NOTE : Make sure the folder name is preceeded by a backslash 
     std_cd_dataset_info = {
-                # "std_malware":{"dbx_path":"/logs_std_malware", "app_type":"malware", "dtype":"std_malware"},
-                # "std_vt10_malware_dev2":{"dbx_path":"/logs_std_vt10_malware_dev2", "app_type":"malware", "dtype":"std_vt10_malware_dev2"},
-                # "std_benign":{"dbx_path":"/logs_std_benign", "app_type":"benign", "dtype":"std_benign"},
-                # "std_benign_dev2":{"dbx_path":"/logs_std_benign_dev2", "app_type":"benign", "dtype":"std_benign_dev2"},
+                "std_malware":{"dbx_path":"/logs_std_malware", "app_type":"malware", "dtype":"std_malware"},
+                "std_vt10_malware_dev2":{"dbx_path":"/logs_std_vt10_malware_dev2", "app_type":"malware", "dtype":"std_vt10_malware_dev2"},
+                "std_benign":{"dbx_path":"/logs_std_benign", "app_type":"benign", "dtype":"std_benign"},
+                "std_benign_dev2":{"dbx_path":"/logs_std_benign_dev2", "app_type":"benign", "dtype":"std_benign_dev2"},
                 
                 "cd_year1_malware":{"dbx_path":"/logs_cd_year1_malware", "app_type":"malware", "dtype":"cd_year1_malware"},
                 "cd_year1_benign":{"dbx_path":"/logs_cd_year1_benign", "app_type":"benign", "dtype":"cd_year1_benign"},
@@ -331,7 +331,7 @@ def create_parser_info_for_all_datasets_usenix_winter(dbx, base_folder_location,
                 "cd_year2_benign":{"dbx_path":"/logs_cd_year2_benign_dev2", "app_type":"benign", "dtype":"cd_year2_benign"},
                 
                 "cd_year3_malware":{"dbx_path":"/logs_cd_year3_malware", "app_type":"malware", "dtype":"cd_year3_malware"},
-                # "cd_year3_benign":{"dbx_path":"/logs_cd_year3_benign", "app_type":"benign", "dtype":"cd_year3_benign"}
+                "cd_year3_benign":{"dbx_path":"/logs_cd_year3_benign", "app_type":"benign", "dtype":"cd_year3_benign"}
                 }
 
     for dtype, val in std_cd_dataset_info.items():
@@ -389,27 +389,41 @@ class analyse_parser_info_dict:
     '''
     Contains functions to analyse the statistics and generate runtime plots based on the parser info dicts.
     '''
+    parserInfoDict = {
+                            "std":{"parserInfoFileName": ["parser_info_std_benign_dev2", "parser_info_std_benign","parser_info_std_malware","parser_info_std_vt10_malware_dev2"],
+                                            "apk_type":            ["benign", "benign", "malware", "malware"]},
+                            
+                            "cdyear1":{"parserInfoFileName": ["parser_info_cd_year1_benign", "parser_info_cd_year1_malware"],
+                                                "apk_type":          ["benign", "malware"]},
+
+                            "cdyear2":{"parserInfoFileName": ["parser_info_cd_year2_benign", "parser_info_cd_year2_malware"],
+                                                "apk_type":          ["benign", "malware"]},
+
+                            "cdyear3":{"parserInfoFileName": ["parser_info_cd_year3_benign", "parser_info_cd_year3_malware"],
+                                                "apk_type":          ["benign", "malware"]}        
+                        }
+
     def __init__(self, base_dir) -> None:
         """
         params:
             - base_dir: path of the src directory of the XMD repository
         """
         # Path where the parser info logs are stored
-        self.parser_info_dir = os.path.join(base_dir.replace("/src",""),"res/parser_info_files")
+        self.parser_info_dir = os.path.join(base_dir.replace("/src",""),"res/parser_info_files/winter")
         # Path where the plots are stored
-        self.output_dir_plots = os.path.join(base_dir.replace("/src",""),"plots/dataset_characterization")
+        self.output_dir_plots = os.path.join(base_dir.replace("/src",""),"plots/dataset_characterization/winter")
 
         if not os.path.isdir(self.output_dir_plots):
             os.system(f"mkdir -p {self.output_dir_plots}")
 
     ##################################### Methods to generate runtime distribution plots #####################################
-    def plot_runtime_distribution(self, runtime_per_file, app_type_per_file, dataset_type, save_location):
+    def plot_runtime_distribution(self, runtime_per_file, app_type_per_file, dataset_name, save_location):
         '''
         Plots the runtime distribution
         params:
             - runtime_per_file: List containing runtimes of files. (Runtime calculated from logcat files)
             - app_type_per_file: List containing corresponding application type [benign or malware] of files.
-            - dataset_type: Dataset ['std','cd', or 'all']
+            - dataset_name: Dataset ['std','cdyear1', 'cdyear2', 'cdyear3', or 'all'] -> Used in the title of the figure.
             - save_location: Location where the plot is saved
         '''
 
@@ -418,38 +432,37 @@ class analyse_parser_info_dict:
         df = pd.DataFrame(data=d)
 
         plt.plot()
-        palette = ['#ff5050','#5cd65c']
+        palette = ['#5cd65c','#ff5050']
         sns.set_style("whitegrid")
         ax = sns.histplot(data = df, x='runtime', hue='apk type', binwidth=2, multiple='dodge', shrink=0.8, palette=palette)
         plt.xlabel('Runtime (in s)', weight = 'bold')
-        plt.ylabel('Number of iterations', weight='bold')
+        plt.ylabel('# of data-collection runs', weight='bold')
         plt.setp(ax.get_legend().get_title(), weight='bold') # for legend title
+        plt.title(f"Runtime distribution for apks in {dataset_name}")
         plt.tight_layout()
         plt.savefig(save_location)
         plt.close('all')
 
 
-    def generate_runtime_distribution_plot_per_dataset(self, dataset_type, plot_flag):
+    def generate_runtime_distribution_plot_per_dataset(self, dataset_name, plot_flag):
         """
         Generates the run-time distribution of the malware and benign samples of a given dataset
         params:
-            - dataset_type: The dataset for which the run-time distribution will be generated : ['std' or 'cd']
+            - dataset_name: The dataset for which the run-time distribution will be generated : ['std', 'cdyear1', 'cdyear2', or 'cdyear3']
             - plot_flag: Boolean flag to determine whether or not to generate the plot
 
         Output:
             - runtime_per_file, app_type_per_file : Arrays storing the runtime and the corresponding apk type
         """
-        # Logcat json for each app type
-        apk_type_list = ['malware','benign']
-
+        
         # Array for storing the runtime duration for the logcat file [for both benign and malware]    
         runtime_per_file = []
         # app type per file
         app_type_per_file = []
 
-        for app_type in apk_type_list:
+        for parserInfoFileName, app_type in zip(analyse_parser_info_dict.parserInfoDict[dataset_name]["parserInfoFileName"], analyse_parser_info_dict.parserInfoDict[dataset_name]["apk_type"]):
             # Load the JSON containing the apk folder name and the number of logcat files for the apk
-            with open(os.path.join(self.parser_info_dir,f"parser_info_{dataset_type}_{app_type}.json"),"r") as fp:
+            with open(os.path.join(self.parser_info_dir,f"{parserInfoFileName}.json"),"r") as fp:
                 data=json.load(fp)
                 
             for key,value in data.items():
@@ -467,8 +480,8 @@ class analyse_parser_info_dict:
         if plot_flag:
             self.plot_runtime_distribution(runtime_per_file=runtime_per_file,
                                             app_type_per_file=app_type_per_file,
-                                            dataset_type=dataset_type,
-                                            save_location=os.path.join(self.output_dir_plots,f"runtime_distribution_malware_benign_{dataset_type}_dataset.png"))
+                                            dataset_name=dataset_name,
+                                            save_location=os.path.join(self.output_dir_plots,f"runtime_distribution_malware_benign_{dataset_name}_dataset.png"))
 
         return runtime_per_file, app_type_per_file
 
@@ -476,16 +489,19 @@ class analyse_parser_info_dict:
         """
         Generates the run-time distribution of the malware and benign samples of all the datsets combined: {std-dataset and cd-dataset}
         """
-        runtime_per_file_std, app_type_per_file_std = self.generate_runtime_distribution_plot_per_dataset(dataset_type='std', plot_flag=False)
-        runtime_per_file_cd, app_type_per_file_cd = self.generate_runtime_distribution_plot_per_dataset(dataset_type='cd', plot_flag=False)
+    
+        runtime_per_file_std, app_type_per_file_std = self.generate_runtime_distribution_plot_per_dataset(dataset_name='std', plot_flag=False)
+        runtime_per_file_cd1, app_type_per_file_cd1 = self.generate_runtime_distribution_plot_per_dataset(dataset_name='cdyear1', plot_flag=False)
+        runtime_per_file_cd2, app_type_per_file_cd2 = self.generate_runtime_distribution_plot_per_dataset(dataset_name='cdyear2', plot_flag=False)
+        runtime_per_file_cd3, app_type_per_file_cd3 = self.generate_runtime_distribution_plot_per_dataset(dataset_name='cdyear3', plot_flag=False)
 
-        runtime_per_file = runtime_per_file_std+runtime_per_file_cd
-        app_type_per_file = app_type_per_file_std+app_type_per_file_cd
+        runtime_per_file = runtime_per_file_std+runtime_per_file_cd1+runtime_per_file_cd2+runtime_per_file_cd3
+        app_type_per_file = app_type_per_file_std+app_type_per_file_cd1+app_type_per_file_cd2+app_type_per_file_cd3
 
         if plot_flag:
             self.plot_runtime_distribution(runtime_per_file=runtime_per_file,
                                             app_type_per_file=app_type_per_file,
-                                            dataset_type='all',
+                                            dataset_name='all',
                                             save_location=os.path.join(self.output_dir_plots,f"runtime_distribution_malware_benign_all_dataset.png"))
     ########################################################################################################################
 
@@ -541,8 +557,8 @@ def main():
 
     # Generating parser_info for all the datasets [STD, CD, and BENCH dataset]
     # create_parser_info_for_all_datasets_usenix_summer(dbx, base_folder_location=base_folder_location, load_flag=1)
-    create_parser_info_for_all_datasets_usenix_winter(dbx, base_folder_location=base_folder_location, load_flag=1)
-    
+    # create_parser_info_for_all_datasets_usenix_winter(dbx, base_folder_location=base_folder_location, load_flag=0)
+    # exit()
     # ################################################### Analyze the parser_info dicts ############################################################
     # # Generate the runtime distribution plots
     # dataset_characterization = analyse_parser_info_dict(base_dir=dir_path)
@@ -550,6 +566,12 @@ def main():
     # dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_type = 'cd', plot_flag=True)
     # dataset_characterization.generate_runtime_distribution_plot_all_datasets(plot_flag=True)
 
+    dataset_characterization = analyse_parser_info_dict(base_dir=dir_path)
+    dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_name = 'cdyear1', plot_flag=True)
+    dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_name = 'cdyear2', plot_flag=True)
+    dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_name = 'cdyear3', plot_flag=True)
+    dataset_characterization.generate_runtime_distribution_plot_per_dataset(dataset_name = 'std', plot_flag=True)
+    dataset_characterization.generate_runtime_distribution_plot_all_datasets(plot_flag=True)
     # ##############################################################################################################################################
 
 

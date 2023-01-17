@@ -52,80 +52,6 @@ def download(dbx, path, download_path):
             return None
 
 
-
-def get_common_apps(path_list):
-    """
-    Function to extract the common applications that are present in the list of folders whose path is specified in path_list
-
-    Input : 
-        path_list : List of folder paths containing the data logs
-    Output :
-        common_app_list : List of app_hashes that are common in all the folders specified in path_list
-    """
-
-    # Create a list of files that are present in each of the folders
-    # file_list_per_folder : [ [list of files in path_list[0]], [list of files in path_list[1]], [], ...]
-    file_list_per_folder = [[join(_path,f) for f in listdir(_path) if isfile(join(_path,f))] for _path in path_list]
-    
-    # Extract hashes from each file list and create a dict: key = hash | value = # of occurences of the hash (should be <=2)
-    # app_list_hash = [{hash1:num_occurences, hash2:num_occurences, ...}, {...}, {...}, ...]
-    app_list_hash = [{} for _ in path_list] # Creating one dict for each folder
-
-    for hash_list_dict, file_list_ in zip(app_list_hash, file_list_per_folder): # For each folder 
-
-        # Parse the file_list_ to extract the hash from the file path [includes the file name]
-        for file_name in file_list_:
-            file_hash_obj = re.search(r'.*\/(.*)__.*', file_name, re.M|re.I)
-            
-            if file_hash_obj: 
-                file_hash_string = file_hash_obj.group(1).strip()
-                
-                # Add this hash to the dict if its not present, else update the # of occurences
-                if file_hash_string not in hash_list_dict:
-                    hash_list_dict[file_hash_string] = 1
-                else:
-                    hash_list_dict[file_hash_string] += 1
-            
-    # Sanity check for verifying that the parser's functionality [Total occurences in dict = Number of files in the folder]
-    num_files_per_folder = [len(folder) for folder in file_list_per_folder]
-    total_occurences_per_folder = [sum(d.values()) for d in app_list_hash]
-    total_apk_per_folder = [len(d.keys()) for d in app_list_hash]
-    
-    print("-------------------------------------------------------------------------------------------------")
-    print(f"Num apks per folder : {total_apk_per_folder}")
-    print(f"Num files : {num_files_per_folder} | Total occurences : {total_occurences_per_folder} | Equal : {num_files_per_folder == total_occurences_per_folder}")
-
-    # Find the common apps in all the folders specified in path_list
-    # common_app_hashes = [(hash1, [num_files_folder1, num_files_folder2, ...]), (...), (...), ...]
-    common_app_hashes = [] # Stores the hashes and total files of the common apps that are present in all the folders
-    
-    num_folders = len(path_list) # Number of folders
-     
-    # Pick the first folder_dict and see which hashes are common with all the other folder_dicts
-    for hash_val, occurences in app_list_hash[0].items():
-        hash_present_in_folder = 1
-        # Number of files for this apk
-        num_files_for_apk = [occurences]
-
-        # Check if this hash is present in other folders. 
-        for hash_list_dict in app_list_hash[1:]:
-            if hash_val in hash_list_dict:
-                hash_present_in_folder+=1
-                
-                num_files_for_apk.append(hash_list_dict[hash_val]) # Collect the number of files for this apk
-        
-        if hash_present_in_folder == num_folders: 
-            # Hash is common to all the folders. Add it to the common app hashes
-            common_app_hashes.append((hash_val,num_files_for_apk))
-            
-
-    # Common apks across all folders, and the number of files in each folder for the common apks
-    print(f" - Number of common apks : {len(common_app_hashes)}")
-    print(f" - Number of files for the common apks : {[ sum([occur[i] for hashv,occur in common_app_hashes]) for i in range(len(path_list))]}")
-
-    return common_app_hashes
-
-
 class arm_telemetry_data(torch.utils.data.Dataset):
     ''' 
     This is the Dataset object.
@@ -182,7 +108,7 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         X_std = X
 
         # Normalize
-        if self.normalize:
+        if self.normalize and (X_std is not None):
             # X : Nchannel x num_data_points
 
             # Calculate mean of each channel
@@ -272,7 +198,14 @@ class arm_telemetry_data(torch.utils.data.Dataset):
         dvfs_list = []
 
         with open(f_path) as f:
-            next(f) #Skip the first line containing the timestamp
+            try:
+                next(f) #Skip the first line containing the timestamp
+            except StopIteration:
+                # File is empty. Log the location of this file and return None.
+                with open("/data/hkumar64/projects/arm-telemetry/xmd/res/filesToDelete.txt", "a") as myfile:
+                    myfile.write(f"{f_path}\n")
+                print(f" ** Empty dvfs file found : {f_path}")
+                return None
 
             for line in f:
                 try:
@@ -340,6 +273,12 @@ class custom_collator(object):
             # batch_labels : [iter1_label, iter2_label, ...iterB_label]
             # batch_paths : [iter1_path, iter2_path, ...iterB_path]
             batch_dvfs, batch_labels, batch_paths = list(zip(*batch))
+
+            # Filter out the empty files
+            batch_labels = [x for i,x in enumerate(batch_labels) if batch_dvfs[i] is not None]
+            batch_paths = [x for i,x in enumerate(batch_paths) if batch_dvfs[i] is not None]
+            batch_dvfs = [x for x in batch_dvfs if x is not None]
+            assert (len(batch_labels)==len(batch_paths)) and (len(batch_dvfs)==len(batch_paths)), "Mismatch in number of dataset tensor and corresponding labels and paths" 
 
             if self.resample:
                 # Resample so that each iteration in the batch has the same number of datapoints
@@ -970,6 +909,7 @@ class dataset_split_generator:
 
         NOTE: Depending on the dataset type, certain partitions or labels will be empty. So you need to check for that in your code down the line.
         """
+        print("********** Creating the splits [partitions and labels dict] for all the classification tasks of interest ********** ")
         
         ####### To keep track of which files have not been selected for testing and validation [For Individual/Fused DVFS and Individual/Fused HPC] #######
         dvfs_benign_loc = os.path.join(base_location, "benign","dvfs")
@@ -1074,21 +1014,37 @@ class dataset_split_generator:
             raise ValueError("[Error in Datasplit generator] Incorrect dataset type passed.")
         
         ################################ Unit tests for testing the HPC-DVFS fusion partitions ################################
-        # print("********** Stats for HPC partitions HPC-DVFS fusion ********** ")
-        # for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_DVFS_fusion):
-        #     print(f" - Stats for rn : {rn_indx+1}")
-        #     for key,value in rn_partition_dict.items():
-        #         print(f"  - {key,len(value)}")
-
-        # print("********** Stats for DVFS partitions HPC-DVFS fusion ********** ")
-        # for rn_indx, rn_partition_dict in enumerate(DVFS_partition_for_HPC_DVFS_fusion):
-        #     print(f" - Stats for rn : {rn_indx+1}")
-        #     for key,value in rn_partition_dict.items():
-        #         print(f"  - {key,len(value)}")
+        print("-> Stats for DVFS partitions in HPC-DVFS fusion.")
+        try:
+            for rn_indx, rn_partition_dict in enumerate(DVFS_partition_for_HPC_DVFS_fusion):
+                print(f" - numFiles in rn bin : {rn_indx+1}")
+                print(f"partition\tnumFiles")  
+                for key,value in rn_partition_dict.items():
+                    try:
+                        print(f"{key}\t{len(value)}")
+                    except:
+                        print(f"{key}\t{None}")
+        except:
+            print(None)
         
-        ## Testing for one to one correspondence between the DVFS partition and HPC partition 
+        print("-> Stats for HPC partitions in HPC-DVFS fusion.")
+        try:
+            for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_DVFS_fusion):
+                print(f" - numFiles in rn bin : {rn_indx+1}")
+                print(f"partition\tnumFiles")  
+                for key,value in rn_partition_dict.items():
+                    try:
+                        print(f"{key}\t{len(value)}")
+                    except:
+                        print(f"{key}\t{None}")
+
+        except:
+            print(None)
+
+        
+        # # Testing for one to one correspondence between the DVFS partition and HPC partition 
         # rn_minus_1 = 0 # For selecting the rn_val
-        # for i,j in zip(DVFS_partition_for_HPC_DVFS_fusion[rn_minus_1]['test'], HPC_partition_for_HPC_DVFS_fusion[rn_minus_1]['test']):
+        # for i,j in zip(DVFS_partition_for_HPC_DVFS_fusion[rn_minus_1]['trainSG'], HPC_partition_for_HPC_DVFS_fusion[rn_minus_1]['trainSG']):
         #     print(f"- {i} ====== {j} ====== {DVFS_partition_labels_for_HPC_DVFS_fusion[rn_minus_1][i]} ======= {HPC_partition_labels_for_HPC_DVFS_fusion[rn_minus_1][j]}\n")
         # exit()
         ##########################################################################################################################
@@ -1142,11 +1098,21 @@ class dataset_split_generator:
             raise ValueError("[Error in Datasplit generator] Incorrect dataset type passed.")
         
         ################################ Unit tests for testing the HPC individual partitions ################################        
-        # print("********** Stats for HPC partitions individual ********** ")
-        # for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_individual):
-        #     print(f" - Stats for rn : {rn_indx+1}")
-        #     for key,value in rn_partition_dict.items():
-        #         print(f"  - {key,len(value)}")
+        
+        print("-> Stats for HPC-individual.")
+        try:
+            for rn_indx, rn_partition_dict in enumerate(HPC_partition_for_HPC_individual):
+                print(f" - numFiles in rn bin : {rn_indx+1}")
+                print(f"partition\tnumFiles")  
+                for key,value in rn_partition_dict.items():
+                    try:
+                        print(f"{key}\t{len(value)}")
+                    except:
+                        print(f"{key}\t{None}")
+
+        except:
+            print(None)
+
         # exit()
         #######################################################################################################################
 
@@ -1207,15 +1173,30 @@ class dataset_split_generator:
             DVFS_partition_for_DVFS_individual = {'train':train, 'trainSG':[], 'test':[]}
             DVFS_partition_for_DVFS_fusion = None
 
-        ################################ Unit tests for testing the HPC individual partitions ################################        
-        # # Testing the partition for individual and fused dvfs
-        # print(" ********** Stats for DVFS individual ********** ")
-        # for key,value in DVFS_partition_for_DVFS_individual.items():
-        #     print(f"  - {key, len(value)}")
+        ################################ Unit tests for testing the DVFS individual partitions ################################         
+        # Testing the partition for individual and fused dvfs
+        print("-> Stats for DVFS individual.")
+        try:
+            print(f"partition\tnumFiles")  
+            for key,value in DVFS_partition_for_DVFS_individual.items():
+                try:
+                    print(f"{key}\t{len(value)}")
+                except:
+                    print(f"{key}\t{None}")
+        except:
+            print(None)
         
-        # print(" ********** Stats for DVFS fusion **********  ")
-        # for key,value in DVFS_partition_for_DVFS_fusion.items():
-        #     print(f"  - {key, len(value)}")
+        
+        print("-> Stats for DVFS fusion.")
+        try:
+            print(f"partition\tnumFiles")  
+            for key,value in DVFS_partition_for_DVFS_fusion.items():
+                try:
+                    print(f"{key}\t{len(value)}")
+                except:
+                    print(f"{key}\t{None}")
+        except:
+            print(None)
         ######################################################################################################################        
 
         #########################**************************************************************************************************************************##########################
@@ -1247,8 +1228,8 @@ class dataset_generator_downloader:
         self.base_download_dir = base_download_dir
         self.dataset_type = dataset_type
         ############################### Generating black list for malware apks for all the datasets #################################
-        vt_malware_report_path = os.path.join(self.root_dir_path, "res", "virustotal", "hash_virustotal_report_malware")
-        # vt_malware_report_path = os.path.join(self.root_dir_path, "res", "virustotal", "hash_VT_report_all_malware_vt10.json")
+        # vt_malware_report_path = os.path.join(self.root_dir_path, "res", "virustotal", "hash_virustotal_report_malware")
+        vt_malware_report_path = os.path.join(self.root_dir_path, "res", "virustotal", "hash_VT_report_all_malware_vt10.json")
         
         # If the black list already exists, then it will load the previous black list. To generate the new blacklist, delete
         # the not_malware_hashlist at "xmd/res/virustotal"
@@ -1300,7 +1281,8 @@ class dataset_generator_downloader:
         # Save the not_malware list as a pickled file
         with open(not_malware_list_loc, 'wb') as fp:
             pickle.dump(not_malware, fp)
-            
+
+        print(f" --------- {len(not_malware)} apks added to the not_malware list --------- ")    
         return not_malware
 
     @staticmethod
@@ -1498,8 +1480,7 @@ class dataset_generator_downloader:
         '''
         # Create the download location on the local host
         base_download_location = os.path.join(self.base_download_dir, self.dataset_type, app_type)
-        os.system(f'mkdir -p {os.path.join(base_download_location, file_type)}')
-
+        
         # Get the dropbox api key
         with open(os.path.join(self.root_dir_path,"src","dropbox_api_key")) as f:
             access_token = f.readlines()[0]
@@ -1508,13 +1489,6 @@ class dataset_generator_downloader:
         print('Authenticating with Dropbox...')
         dbx = dropbox.Dropbox(access_token)
         print('...authenticated with Dropbox owned by ' + dbx.users_get_current_account().name.display_name)
-
-        # If file_type is simpleperf then create rn bucket folders for each of them
-        if (file_type == 'simpleperf'):
-            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn1')}")
-            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn2')}")
-            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn3')}")
-            os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn4')}")
 
         # Create the dropbox location for the give file_type from the shortlisted_files
         dropbox_location, localhost_loc = dataset_generator_downloader.create_dropbox_location(shortlisted_files, file_type)
@@ -1526,6 +1500,14 @@ class dataset_generator_downloader:
         not_download_count = 0
 
         if download_flag:
+            # Create folder locations. If file_type is simpleperf then create rn bucket folders for each of them.
+            os.system(f'mkdir -p {os.path.join(base_download_location, file_type)}')
+            if (file_type == 'simpleperf'):
+                os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn1')}")
+                os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn2')}")
+                os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn3')}")
+                os.system(f"mkdir -p {os.path.join(base_download_location, file_type, 'rn4')}")
+
             print("--------- Downloading all the shortlisted files ---------")
             if num_download_threads > 1:
                 # Start the download [Downloads in parallel]
@@ -1569,7 +1551,7 @@ class dataset_generator_downloader:
             - num_apk_benign, num_apk_malware : Number of benign and malware apks
         """
 
-        shortlisted_files_benign,shortlisted_files_malware, _ = self.generate_dataset(download_file_flag=False)
+        shortlisted_files_benign,shortlisted_files_malware, _ = self.generate_dataset_winter(download_file_flag=False)
 
         # Get the hash_list for benign and malware
         hashlist_benign = dataset_generator_downloader.extract_hash_from_filename(shortlisted_files_benign)
@@ -1786,21 +1768,23 @@ class dataset_generator_downloader:
 
 def main():
     # # STD-Dataset
-    # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="std-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")
+    # dataset_generator_instance = dataset_generator_downloader(filter_values= [0,50,2], dataset_type="std-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")
     # # CD-Dataset
-    dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="cd-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")
+    dataset_generator_instance = dataset_generator_downloader(filter_values= [0,0,0], dataset_type="std-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")
     # # Bench-Dataset
-    # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="bench-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")
+    # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="bench-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")    
     
-    dataset_generator_instance.generate_dataset(download_file_flag=True, num_download_threads=30)
-    print(dataset_generator_instance.count_number_of_apks())
+    shortlisted_files_benign,shortlisted_files_malware, candidateLocalPathDict = dataset_generator_instance.generate_dataset_winter(download_file_flag=False, num_download_threads=30)
+    num_benign, num_malware = dataset_generator_instance.count_number_of_apks() 
+    print(f" - Number of benign apk: {num_benign} | Number of malware apk: {num_malware}")
     exit()
 
+
     # ######################### Testing the datasplit generator #########################
-    # test_path = "/data/hkumar64/projects/arm-telemetry/xmd/data/cd-dataset"
-    # x = dataset_split_generator(seed=10, partition_dist=[0.7,0.3,0], dataset_type="std-dataset")
-    # x.create_all_datasets(base_location=test_path)
-    # exit()
+    test_path = "/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset/std-dataset"          
+    x = dataset_split_generator(seed=10, partition_dist=[0.7,0.3,0], datasplit_dataset_type="std-dataset")        
+    x.create_all_datasets(base_location=test_path)
+    exit()
     # ###################################################################################
     
     
