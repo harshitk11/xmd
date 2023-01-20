@@ -5,6 +5,7 @@ import csv
 from genericpath import isfile
 import os
 import json
+import pickle
 
 def read_csvfile(filter, num_files):
     """
@@ -379,9 +380,40 @@ class top10k_benign_apps:
             print(f"{category} -> {num_apk}")
 
         return apk_list, meta_info
-        
 
+def generateApkDatabase_for_softwareAVcomparison(downloadFlag):
+    """
+    Generates apk database for software AV comparsion.
+    """
+    datasetNames = ["std-dataset", "cdyear1-dataset", "cdyear2-dataset", "cdyear3-dataset"]
+
+    cur_path = os.path.dirname(os.path.realpath(__file__))
+    xmd_base_folder = os.path.join(cur_path.replace("/baremetal_data_collection_framework/androzoo",""),"")
+    apkDownload_path = os.path.join(cur_path, "apks","softwareAVcomparison")
+    if not os.path.isdir(apkDownload_path):
+        os.system(f"mkdir -p {apkDownload_path}")
+
+    hashListLocationDir = os.path.join(xmd_base_folder, "res", "softwareAVcomparisonApkList")
+    for dName in datasetNames:
+        # Load the hash list
+        benignHashList_location = os.path.join(hashListLocationDir, f"{dName}_benignHashList.pkl")
+        malwareHashList_location = os.path.join(hashListLocationDir, f"{dName}_malwareHashList.pkl")
+        with open(benignHashList_location, 'rb') as fp:
+            benignHashList = pickle.load(fp)
+        with open(malwareHashList_location, 'rb') as fp:
+            malwareHashList = pickle.load(fp)
+        
+        print(dName, len(benignHashList), len(malwareHashList))
+        # Download 
+        if downloadFlag:
+            # Download the files
+            download_apks(apk_list = benignHashList, download_path=apkDownload_path)
+            download_apks(apk_list = malwareHashList, download_path=apkDownload_path)
+    exit()
+        
 def main():
+    generateApkDatabase_for_softwareAVcomparison(downloadFlag=False)    
+
     # Filter lookup table for the different datasets
     filter_dict = {
         # 0:{"name":'std_benign', "num_apk":2000 , "apk_type":"benign"},
@@ -394,6 +426,8 @@ def main():
         # 7:{"name":'cd_year3_malware', "num_apk":1000, "apk_type":"malware", "dataset_type":"cd_year3_malware"}
     }
 
+    # Flag for downloading from previously generated meta info files
+    flag_download_savedMetaInfo_apk = 1
 
     # Current directory [where the script is executing from]
     cur_path = os.path.dirname(os.path.realpath(__file__))
@@ -414,18 +448,25 @@ def main():
         download_path = os.path.join(apkDownload_path, dataset_type["name"])
         os.system("mkdir -p "+download_path)
 
-        # Get the file-list and the meta-info for this dataset
-        if dataset_type["apk_type"] == "malware":
-            apk_list, meta_info = read_csvfile(filter=get_filter(dataset_type= dataset_type["dataset_type"], vt_detection_threshold = 10), num_files=dataset_type["num_apk"])
-        elif dataset_type["apk_type"] == "benign":
-            # For benign we are using the top 10k apps
-            apk_list, meta_info = top10k_benign_apps.generate_apklist_and_metainfo(xmd_base_folder = xmd_base_folder, 
-                                                                                filter=get_filter(dataset_type["dataset_type"]), 
-                                                                                num_files=dataset_type["num_apk"],
-                                                                                dataset_type=dataset_type["name"])
-        # Save the meta_info
-        with open(os.path.join(metInfo_path, f"meta_info_{dataset_type['name']}.json"),"w") as f:
-            json.dump(meta_info, f, indent=4)
+        if not flag_download_savedMetaInfo_apk:
+            # Get the file-list and the meta-info for this dataset
+            if dataset_type["apk_type"] == "malware":
+                apk_list, meta_info = read_csvfile(filter=get_filter(dataset_type= dataset_type["dataset_type"], vt_detection_threshold = 10), num_files=dataset_type["num_apk"])
+            elif dataset_type["apk_type"] == "benign":
+                # For benign we are using the top 10k apps
+                apk_list, meta_info = top10k_benign_apps.generate_apklist_and_metainfo(xmd_base_folder = xmd_base_folder, 
+                                                                                    filter=get_filter(dataset_type["dataset_type"]), 
+                                                                                    num_files=dataset_type["num_apk"],
+                                                                                    dataset_type=dataset_type["name"])
+            # Save the meta_info
+            with open(os.path.join(metInfo_path, f"meta_info_{dataset_type['name']}.json"),"w") as f:
+                json.dump(meta_info, f, indent=4)
+
+        else:
+            # Get the list of apks from the saved meta info file
+            with open(os.path.join(metInfo_path, f"meta_info_{dataset_type['name']}.json"),"w") as f:
+                meta_info = json.load(f)
+            apk_list = list(meta_info.keys())
 
         # Download the files
         download_apks(apk_list, download_path)
