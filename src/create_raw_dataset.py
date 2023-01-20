@@ -1766,26 +1766,69 @@ class dataset_generator_downloader:
 
         return shortlisted_files_benign,shortlisted_files_malware, candidateLocalPathDict
 
+def generate_apk_list_for_software_AV_comparison(dataset_name, saveHashList_flag):
+    """
+    Generates a list of apks for each dataset. This list is used to generate the apk database on which SOTA software based AV
+    params:
+        - dataset_name (str): Type of the dataset for which the apk list will be generated
+        - saveHashList_flag (bool) : Flag to indicate if hashlist will be saved
+    Output:
+        - writes the hashlist_benign and hashlist_malware for the specified dataset in res/softwareAVcomparisonApkList
+    """
+    print(dataset_name)
+    dataset_generator_instance = dataset_generator_downloader(filter_values= [0,50,2], dataset_type=dataset_name, base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")
+    shortlisted_files_benign,shortlisted_files_malware, _ = dataset_generator_instance.generate_dataset_winter(download_file_flag=False, num_download_threads=30)
+    hashlist_benign = dataset_generator_downloader.extract_hash_from_filename(shortlisted_files_benign)
+    hashlist_malware = dataset_generator_downloader.extract_hash_from_filename(shortlisted_files_malware)
+    num_benign, num_malware = dataset_generator_instance.count_number_of_apks() 
+    print(f" - Number of benign apk: {num_benign} | Number of malware apk: {num_malware}")
+   
+    if saveHashList_flag:
+        root_dir_path = os.path.dirname(os.path.realpath(__file__)).replace("/src","")
+        baseLoc = os.path.join(root_dir_path, "res", "softwareAVcomparisonApkList")
+        if not os.path.isdir(baseLoc):
+            os.mkdir(baseLoc)
+            
+        benignHashList_location = os.path.join(baseLoc, f"{dataset_name}_benignHashList.pkl")
+        malwareHashList_location = os.path.join(baseLoc, f"{dataset_name}_malwareHashList.pkl")
+
+        with open(benignHashList_location, 'wb') as fp:
+            pickle.dump(hashlist_benign, fp)
+        with open(malwareHashList_location, 'wb') as fp:
+            pickle.dump(hashlist_malware, fp)
+
+       
+
+    
+
 def main():
     # # STD-Dataset
     # dataset_generator_instance = dataset_generator_downloader(filter_values= [0,50,2], dataset_type="std-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")
     # # CD-Dataset
-    dataset_generator_instance = dataset_generator_downloader(filter_values= [0,0,0], dataset_type="std-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")
+    # dataset_generator_instance = dataset_generator_downloader(filter_values= [0,0,0], dataset_type="std-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")
     # # Bench-Dataset
     # dataset_generator_instance = dataset_generator_downloader(filter_values= [15,50,2], dataset_type="bench-dataset", base_download_dir="/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset")    
     
-    shortlisted_files_benign,shortlisted_files_malware, candidateLocalPathDict = dataset_generator_instance.generate_dataset_winter(download_file_flag=False, num_download_threads=30)
-    num_benign, num_malware = dataset_generator_instance.count_number_of_apks() 
-    print(f" - Number of benign apk: {num_benign} | Number of malware apk: {num_malware}")
-    exit()
+    # shortlisted_files_benign,shortlisted_files_malware, candidateLocalPathDict = dataset_generator_instance.generate_dataset_winter(download_file_flag=False, num_download_threads=30)
+    # num_benign, num_malware = dataset_generator_instance.count_number_of_apks() 
+    # print(f" - Number of benign apk: {num_benign} | Number of malware apk: {num_malware}")
+    # exit()
 
 
-    # ######################### Testing the datasplit generator #########################
-    test_path = "/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset/std-dataset"          
-    x = dataset_split_generator(seed=10, partition_dist=[0.7,0.3,0], datasplit_dataset_type="std-dataset")        
-    x.create_all_datasets(base_location=test_path)
-    exit()
-    # ###################################################################################
+    # # ######################### Testing the datasplit generator #########################
+    # test_path = "/hdd_6tb/hkumar64/arm-telemetry/usenix_winter_dataset/std-dataset"          
+    # x = dataset_split_generator(seed=10, partition_dist=[0.7,0.3,0], datasplit_dataset_type="std-dataset")        
+    # x.create_all_datasets(base_location=test_path)
+    # exit()
+    # # ###################################################################################
+    
+    ######################### Generating hash list for software AV comparison #########################
+    saveHashList_flag = True
+    generate_apk_list_for_software_AV_comparison(dataset_name = "std-dataset", saveHashList_flag=saveHashList_flag)
+    generate_apk_list_for_software_AV_comparison(dataset_name = "cdyear1-dataset", saveHashList_flag=saveHashList_flag)
+    generate_apk_list_for_software_AV_comparison(dataset_name = "cdyear2-dataset", saveHashList_flag=saveHashList_flag)
+    generate_apk_list_for_software_AV_comparison(dataset_name = "cdyear3-dataset", saveHashList_flag=saveHashList_flag)
+    ###################################################################################################
     
     
     

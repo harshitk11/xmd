@@ -22,6 +22,8 @@ import re
 from collections import Counter
 from imblearn.over_sampling import RandomOverSampler
 from create_featEngineer_dataset import dataloader_generator
+from prettytable import PrettyTable
+
 
 BENIGN_LABEL = 0
 MALWARE_LABEL = 1
@@ -57,6 +59,107 @@ def get_args(xmd_base_folder):
 
     return cfg, args
 
+class performanceMetricAggregator:
+    @staticmethod
+    def generatePerformanceMetricTypeDict(datasetName, performanceMetricDict, performanceMetricName, selectedBaseClassifier=None, globlChannelType=None, hpc_group_name=None, clfToi=None):
+        """
+        Generates the dict that is used by getAggregatePerformanceMetric()
+        """
+        datasetType, _ = dataloader_generator.get_dataset_type_and_partition_dist(dataset_name = datasetName)
+        performanceMetricType = {}
+
+        performanceMetricType["performanceMetricDict"] = performanceMetricDict
+        if datasetType == "std-dataset":
+            performanceMetricType["splitType"] = "training"
+        elif datasetType == "cd-dataset":
+            performanceMetricType["splitType"] = "testing"
+        else:
+            raise ValueError(f"DatasetType not supported: {datasetType}")
+
+        performanceMetricType["selectedBaseClassifier"] = selectedBaseClassifier
+        performanceMetricType["globlChannelType"] = globlChannelType
+        performanceMetricType["hpc-group-name"] = hpc_group_name
+        performanceMetricType["clfToi"] = clfToi
+        performanceMetricType["performanceMetricName"] = performanceMetricName
+
+        return performanceMetricType
+
+    @staticmethod
+    def getAggregatePerformanceMetric(lateFusionInstance, performanceMetricType):
+        """
+        Returns a single performance metric from the lateFusionInstance based on the performanceMetricType.
+
+        params:
+            - lateFusionInstance (late_stage_fusion): Instance of the late_stage_fusion object with all the performance metrics updated.
+            - performanceMetricType (dict): {
+                                        "performanceMetricDict": "stage1ClassifierPerformanceMetrics", "globlFusionPerformanceMetric", or "hpcGloblFusionPerformanceMetricAllGroup",
+                                        "splitType": "training" or "testing",
+                                        "selectedBaseClassifier": "globl", "hpc", or "all"
+                                        "globlChannelType": "globl", or "dvfs",
+                                        "hpc-group-name": "hpc-group-1", "hpc-group-2", "hpc-group-3", or "hpc-group-4",
+                                        "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg", "hpc-globl-ensemble", or "hpc-globl-sg"
+                                        "performanceMetricName": 'f1', 'precision', or 'recall'
+                                    }
+                            NOTE: depending on the performanceMetricDict, only some of the fields in the dict are required:
+                                (1) if "performanceMetricDict": "stage1ClassifierPerformanceMetrics"
+                                        Need: splitType, selectedBaseClassifier, performanceMetricName
+                                (2) if "performanceMetricDict": "globlFusionPerformanceMetric"
+                                        Need: splitType, globlChannelType, performanceMetricName
+                                (3) if "performanceMetricDict": "hpcGloblFusionPerformanceMetricAllGroup"
+                                        Need: splitType, hpc-group-name, clfToi, performanceMetricName
+        Output:
+            - performanceMetric (int)
+        """
+        performanceMetricType_ = performanceMetricType["performanceMetricDict"]
+        
+        if performanceMetricType_ == "stage1ClassifierPerformanceMetrics":
+            splitType = performanceMetricType["splitType"]
+            selectedBaseClassifier = performanceMetricType["selectedBaseClassifier"]
+            performanceMetricName = performanceMetricType["performanceMetricName"]
+            performancMetricScoreList = []
+            
+            if selectedBaseClassifier == "globl":
+                for chnName in late_stage_fusion.globlChannelNameList:
+                    pScore = lateFusionInstance.stage1ClassifierPerformanceMetrics[splitType][chnName][performanceMetricName]
+                    performancMetricScoreList.append(pScore)
+
+            elif selectedBaseClassifier == "hpc":
+                for grpName in late_stage_fusion.hpcGroupNameList:
+                    pScore = lateFusionInstance.stage1ClassifierPerformanceMetrics[splitType][grpName][performanceMetricName]
+                    performancMetricScoreList.append(pScore)
+                
+            elif selectedBaseClassifier == "all":
+                for chnGrpName in (late_stage_fusion.globlChannelNameList+late_stage_fusion.hpcGroupNameList):
+                    pScore = lateFusionInstance.stage1ClassifierPerformanceMetrics[splitType][chnGrpName][performanceMetricName]
+                    performancMetricScoreList.append(pScore)
+
+            else:
+                raise ValueError(f"Incorrect selectedBaseClassifier : {performanceMetricType['selectedBaseClassifier']}")
+
+            # Get the mean of the performanceMetric
+            aggregatePerformanceMetric = sum(performancMetricScoreList)/len(performancMetricScoreList)
+            return aggregatePerformanceMetric
+
+        elif performanceMetricType_ == "globlFusionPerformanceMetric":
+            splitType = performanceMetricType["splitType"]
+            globlChannelType = performanceMetricType["globlChannelType"]
+            performanceMetricName = performanceMetricType["performanceMetricName"]
+            pScore = lateFusionInstance.globlFusionPerformanceMetric[splitType][globlChannelType][performanceMetricName]
+            return pScore
+
+        elif performanceMetricType_ == "hpcGloblFusionPerformanceMetricAllGroup":
+            splitType = performanceMetricType["splitType"]
+            hpc_group_name = performanceMetricType["hpc-group-name"]
+            clfToi = performanceMetricType["clfToi"]
+            performanceMetricName = performanceMetricType["performanceMetricName"]
+            pScore = lateFusionInstance.hpcGloblFusionPerformanceMetricAllGroup[splitType][hpc_group_name][clfToi][performanceMetricName]
+            return pScore
+            
+        else:
+            raise ValueError(f"Incorrect performanceMetricDict : {performanceMetricType_}")
+
+    # @staticmethod
+    # drawLinePlot_for_logcatVsThreshold_grid()
 class resample_dataset:
     """
     Contains all the methods for resampling the datasets to achieve the desired malware percentage.
@@ -1380,7 +1483,7 @@ class orchestrator:
             savePath = os.path.join(self.xmd_base_folder_location, "res", "trainedModels", self.datasetName)
             if not os.path.isdir(savePath):
                 os.makedirs(savePath)
-            savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}.pkl")
+            savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{self.malwarePercent}.pkl")
             self.lateStageFusionObject[logcatRuntimeThreshold][truncatedDuration] = savePath
             lateFusionInstance.save_fusion_object(fpath=savePath)
 
@@ -1399,7 +1502,7 @@ class orchestrator:
             -Save the hash list used for testing the classifiers
 
         params:
-            - trainedModelDetails (dict) : {"logcatRuntimeThreshold": (int), "truncatedDuration": (int)} 
+            - trainedModelDetails (dict) : {"logcatRuntimeThreshold": (int), "truncatedDuration": (int), "malwarePercent": (float)} 
                                         -> Used for loading the corresponding trained model
             - logcatRuntimeThreshold (int), truncatedDuration (int): Used for loading the dataset for the classification task
             - print_performance_metric (bool): If True, then print the performance metrics for all evaluations.
@@ -1410,7 +1513,8 @@ class orchestrator:
         """
         ################################### Load the trained model ###################################
         savePath = os.path.join(self.xmd_base_folder_location, "res", "trainedModels", "std-dataset")
-        savePath = os.path.join(savePath,f"lateFusion_logRuntime{trainedModelDetails['logcatRuntimeThreshold']}_truncDuration{trainedModelDetails['truncatedDuration']}.pkl")
+        savePath = os.path.join(savePath,f"lateFusion_logRuntime{trainedModelDetails['logcatRuntimeThreshold']}_truncDuration{trainedModelDetails['truncatedDuration']}_malwarePercent{trainedModelDetails['malwarePercent']}.pkl")
+        
         lateFusionInstance = late_stage_fusion(args=self.args)
         lateFusionInstance.load_fusion_object(fpath=savePath)
         ##############################################################################################
@@ -1476,7 +1580,7 @@ class orchestrator:
             savePath = os.path.join(self.xmd_base_folder_location, "res", "trainedModels", self.datasetName)
             if not os.path.isdir(savePath):
                 os.mkdir(savePath)
-            savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}.pkl")
+            savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{self.malwarePercent}.pkl")
             self.lateStageFusionObject[logcatRuntimeThreshold][truncatedDuration] = savePath
             lateFusionInstance.save_fusion_object(fpath=savePath)
 
@@ -1505,18 +1609,23 @@ class orchestrator:
         """
         Performs a grid search over logcatRuntimeThreshold and truncatedDuration for the following tasks.
             Tasks:
-                - For cd-dataset, generated evaluation scores for the specified trained model.
+                - For cd-dataset, generate evaluation scores using one of the following: 
+                                (1) specified trained model [only when trainedModelDetails is passed], 
+                                (2) trained model with the same config parameters: logcatRuntimeThreshold and truncatedDuration.
                 - For std-dataset, generate late-stage-fusion instances storing the trained models.
             
             params:
-                - trainedModelDetails (dict) : {"logcatRuntimeThreshold": (int), "truncatedDuration" : (int)}
+                - trainedModelDetails (dict) : {"logcatRuntimeThreshold": (int), "truncatedDuration" : (int), "malwarePercent": (float)}
+                                                If this parameter is passed then grid search using the cd-dataset is performed using this trained model.
+                                                Else, the same config trained model is used for testing the corresponding cd-dataset instance.
         """
         datasetType, _ = dataloader_generator.get_dataset_type_and_partition_dist(dataset_name = self.datasetName)
         
-        if (datasetType == "cd-dataset") and (trainedModelDetails is not None):
+        if (datasetType == "cd-dataset"):
             # Grid search all parameter using the trained model.
             for logcatRuntimeThreshold in self.candidateLogcatRuntimeThresholds:
                 for truncatedDuration in self.candidateTruncatedDurations:
+                    print(f" ---------- Generating late-stage-fusion instance for logcatRuntimeThreshold {logcatRuntimeThreshold} and truncatedDuration {truncatedDuration} ----------")
                     # Trained model to be used for testing
                     orchInst = orchestrator(args=self.args, 
                                 basePath_featureEngineeredDataset=self.basePath_featureEngineeredDataset, 
@@ -1524,7 +1633,14 @@ class orchestrator:
                                 malwarePercent=self.malwarePercent,
                                 xmd_base_folder_location=self.xmd_base_folder_location)
         
-                    orchInst.cd_dataset_tasks(trainedModelDetails=trainedModelDetails,
+                    if trainedModelDetails is None:
+                        # Use the trained model with the same config
+                        savedTrainedModelDetails = {"logcatRuntimeThreshold": logcatRuntimeThreshold, "truncatedDuration" : truncatedDuration, "malwarePercent":self.malwarePercent}
+                    else:
+                        # Use the specified trained model
+                        savedTrainedModelDetails = trainedModelDetails
+ 
+                    orchInst.cd_dataset_tasks(trainedModelDetails=savedTrainedModelDetails,
                                             logcatRuntimeThreshold=logcatRuntimeThreshold, 
                                             truncatedDuration=truncatedDuration, 
                                             print_performance_metric=True, 
@@ -1548,17 +1664,83 @@ class orchestrator:
         else:
             raise ValueError(f"Incomplete arguments : datasetType is {datasetType} and trainedModelDetails is {trainedModelDetails}.")
 
-    @staticmethod
-    def prettyPrintGridPerformanceMetrics(datasetName):
+
+    def prettyPrintGridPerformanceMetrics(self, datasetName, performanceMetricTypeSpecifier, malwarePercent):
         """
         Pretty prints the performance metrics over the search grid of logcatRuntimeThreshold and truncatedDuration.
+        Edit this method if you want a different performance metric.
         
         params:
             - datasetName : Name of the dataset for which the performance metric grid needs to be printed
+            - performanceMetricTypeSpecifier (dict): {
+                                                        "performanceMetricDict": "stage1ClassifierPerformanceMetrics", "globlFusionPerformanceMetric", or "hpcGloblFusionPerformanceMetricAllGroup", 
+                                                        "performanceMetricName": 'f1', 'precision', or 'recall', 
+                                                        "selectedBaseClassifier": "globl", "hpc", or "all",
+                                                        "globlChannelType": "globl", or "dvfs",
+                                                        "hpc-group-name": "hpc-group-1", "hpc-group-2", "hpc-group-3", or "hpc-group-4",
+                                                        "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg", "hpc-globl-ensemble", or "hpc-globl-sg"
+                                                    }
+                                    NOTE:
+                                        (1) if "performanceMetricDict": "stage1ClassifierPerformanceMetrics"
+                                                Need: splitType, selectedBaseClassifier, performanceMetricName
+                                        (2) if "performanceMetricDict": "globlFusionPerformanceMetric"
+                                                Need: splitType, globlChannelType, performanceMetricName
+                                        (3) if "performanceMetricDict": "hpcGloblFusionPerformanceMetricAllGroup"
+                                                Need: splitType, hpc-group-name, clfToi, performanceMetricName
+            - malwarePercent (int) : Used for accessing the corresponding late_stage_fusion instance
+
+        Output:
+            - gridTable (PrettyTable) : Contains the performance metric over the grid of truncatedDuration and logcatRuntimeThreshold
+                                Format: []
         """
-        # Read the saved latestagefusion instances
-        # Generate a pretty way to print all the performance metrics
-        pass
+        # # Storing the grid for plotting
+        # xArr = [tD for tD in self.candidateTruncatedDurations]
+        # xy_plotArr = []
+
+
+        # For display
+        gridTable = PrettyTable()
+        gridTable.field_names = ["LogcatRuntimeThreshold"]+[truncatedDuration for truncatedDuration in self.candidateTruncatedDurations]
+
+        for logcatRuntimeThreshold in self.candidateLogcatRuntimeThresholds:
+            performanceMetricForAll_truncatedDuration = []
+
+            for truncatedDuration in self.candidateTruncatedDurations:
+                ################################### Load the saved lateFusionInstance ###################################
+                savePath = os.path.join(self.xmd_base_folder_location, "res", "trainedModels", datasetName)
+                savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{malwarePercent}.pkl")
+                lateFusionInstance = late_stage_fusion(args=self.args)
+                lateFusionInstance.load_fusion_object(fpath=savePath)
+                #########################################################################################################
+
+                #################################### Get the performance metric from the lateFusionInstance ###################################
+                performanceMetricDict = performanceMetricTypeSpecifier["performanceMetricDict"]
+                performanceMetricName = performanceMetricTypeSpecifier["performanceMetricName"]
+                selectedBaseClassifier= performanceMetricTypeSpecifier["selectedBaseClassifier"]
+                globlChannelType= performanceMetricTypeSpecifier["globlChannelType"]
+                hpc_group_name= performanceMetricTypeSpecifier["hpc-group-name"]
+                clfToi=performanceMetricTypeSpecifier["clfToi"]
+
+                performanceMetricType = performanceMetricAggregator.generatePerformanceMetricTypeDict(datasetName=datasetName, 
+                                                                                                        performanceMetricDict = performanceMetricDict, 
+                                                                                                        performanceMetricName = performanceMetricName, 
+                                                                                                        selectedBaseClassifier= selectedBaseClassifier, 
+                                                                                                        globlChannelType=globlChannelType, 
+                                                                                                        hpc_group_name=hpc_group_name, 
+                                                                                                        clfToi=clfToi)
+
+                pScore = performanceMetricAggregator.getAggregatePerformanceMetric(lateFusionInstance=lateFusionInstance, 
+                                                                            performanceMetricType=performanceMetricType)
+                performanceMetricForAll_truncatedDuration.append(pScore)
+                ###############################################################################################################################
+
+            gridTable.add_row([logcatRuntimeThreshold]+performanceMetricForAll_truncatedDuration)
+            
+        print(f" --- Performance metric for {datasetName} --- \nperformanceMetricDict: {performanceMetricDict}\nperformanceMetricName: {performanceMetricName}\
+            \nselectedBaseClassifier: {selectedBaseClassifier}\ngloblChannelType: {globlChannelType}\nhpc_group_name: {hpc_group_name}\nclfToi: {clfToi}")
+        print(gridTable)
+
+        return gridTable
 
     def save_orchestrator_state():
         pass
@@ -1577,26 +1759,99 @@ class orchestrator:
         # orchInst.std_dataset_tasks(logcatRuntimeThreshold=0, truncatedDuration=30, print_performance_metric=True, saveTrainedModels=True)                
         # ##############################################################################
 
-        ########################## Testing cd-dataset tasks ###########################
-        orchInst = orchestrator(args=args, 
-                                basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset", 
-                                datasetName="cd-dataset", 
-                                malwarePercent=0.5,
-                                xmd_base_folder_location=xmd_base_folder_location)
-        # Trained model to be used for testing
-        trainedModelDetails = {"logcatRuntimeThreshold":0, "truncatedDuration":30}
-        orchInst.cd_dataset_tasks(trainedModelDetails=trainedModelDetails, logcatRuntimeThreshold=15, truncatedDuration=30, print_performance_metric=True, saveLateStageFusionObject=True)                
-        ##############################################################################
-
-        # ########################## Testing grid search task ##########################
+        # ########################## Testing cd-dataset tasks ###########################
         # orchInst = orchestrator(args=args, 
-        #                         basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset", 
-        #                         datasetName="std-dataset", 
+        #                         basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
+        #                         datasetName="cdyear2-dataset", 
         #                         malwarePercent=0.5,
         #                         xmd_base_folder_location=xmd_base_folder_location)
-        # trainedModelDetails = {"logcatRuntimeThreshold":15, "truncatedDuration":30}
-        # orchInst.logcat_runtime_vs_truncated_duration_grid(trainedModelDetails=trainedModelDetails)
+        # # Trained model to be used for testing
+        # trainedModelDetails = {"logcatRuntimeThreshold":0, "truncatedDuration":30, "malwarePercent":0.5}
+        # orchInst.cd_dataset_tasks(trainedModelDetails=trainedModelDetails, logcatRuntimeThreshold=0, truncatedDuration=30, print_performance_metric=True, saveLateStageFusionObject=True)                
         # ##############################################################################
+
+        # ######################### Testing grid search task ##########################
+        # orchInst = orchestrator(args=args, 
+        #                         basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
+        #                         datasetName="cdyear1-dataset", 
+        #                         malwarePercent=0.5,
+        #                         xmd_base_folder_location=xmd_base_folder_location)
+        # trainedModelDetails = {"logcatRuntimeThreshold":15, "truncatedDuration":30, "malwarePercent":0.5}
+        # trainedModelDetails=None
+        # orchInst.logcat_runtime_vs_truncated_duration_grid(trainedModelDetails=trainedModelDetails)
+        # exit()
+        # #############################################################################
+
+        # ########################## Testing performance metric aggregator ########################
+        ## To be used as reference for passing arguments
+        # "performanceMetricDict": "stage1ClassifierPerformanceMetrics", "globlFusionPerformanceMetric", or "hpcGloblFusionPerformanceMetricAllGroup", 
+        #                                                 "performanceMetricName": 'f1', 'precision', or 'recall', 
+        #                                                 "selectedBaseClassifier": "globl", "hpc", or "all",
+        #                                                 "globlChannelType": "globl", or "dvfs",
+        #                                                 "hpc-group-name": "hpc-group-1", "hpc-group-2", "hpc-group-3", or "hpc-group-4",
+        #                                                 "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg", "hpc-globl-ensemble", or "hpc-globl-sg"
+        
+        # datasetName = "cdyear1-dataset"
+        # performanceMetricDict = "hpcGloblFusionPerformanceMetricAllGroup"
+        # performanceMetricName = 'f1'
+        # selectedBaseClassifier= "all"
+        # globlChannelType= "dvfs"
+        # hpc_group_name= "hpc-group-4"
+        # clfToi="hpc-globl-ensemble"
+        
+        # performanceMetricType =performanceMetricAggregator.generatePerformanceMetricTypeDict(datasetName=datasetName, 
+        #                                                                 performanceMetricDict = performanceMetricDict, 
+        #                                                                 performanceMetricName = performanceMetricName, 
+        #                                                                 selectedBaseClassifier= selectedBaseClassifier, 
+        #                                                                 globlChannelType=globlChannelType, 
+        #                                                                 hpc_group_name=hpc_group_name, 
+        #                                                                 clfToi=clfToi)
+
+        # # Load the saved lateFusionInstance 
+        # savePath = os.path.join(xmd_base_folder_location, "res", "trainedModels", datasetName)
+        # savePath = os.path.join(savePath,f"lateFusion_logRuntime{0}_truncDuration{30}.pkl")
+        # lateFusionInstance = late_stage_fusion(args=args)
+        # lateFusionInstance.load_fusion_object(fpath=savePath)
+        # lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True, globlFusionPerfFlag=True, hpcGloblFusionPerfFlag=True)
+
+        # pScore = performanceMetricAggregator.getAggregatePerformanceMetric(lateFusionInstance=lateFusionInstance, 
+        #                                                                     performanceMetricType=performanceMetricType)
+        # print(pScore)
+        # #########################################################################################
+
+        ########################## Testing the performance grid generator ##########################
+        orchInst = orchestrator(args=args, 
+                                basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
+                                datasetName="cdyear1-dataset", 
+                                malwarePercent=0.5,
+                                xmd_base_folder_location=xmd_base_folder_location)
+
+        # performanceMetricTypeSpecifier = {
+        #                                     "performanceMetricDict": "stage1ClassifierPerformanceMetrics", "globlFusionPerformanceMetric", or "hpcGloblFusionPerformanceMetricAllGroup", 
+        #                                     "performanceMetricName": 'f1', 'precision', or 'recall', 
+        #                                     "selectedBaseClassifier": "globl", "hpc", or "all",
+        #                                     "globlChannelType": "globl", or "dvfs",
+        #                                     "hpc-group-name": "hpc-group-1", "hpc-group-2", "hpc-group-3", or "hpc-group-4",
+        #                                     "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg", "hpc-globl-ensemble", or "hpc-globl-sg"
+        #                                 }
+
+
+        performanceMetricTypeSpecifier = {
+                                            "performanceMetricDict": "hpcGloblFusionPerformanceMetricAllGroup", 
+                                            "performanceMetricName": 'f1', 
+                                            "selectedBaseClassifier": "globl",
+                                            "globlChannelType": "globl",
+                                            "hpc-group-name": "hpc-group-3",
+                                            "clfToi": "hpc-globl-ensemble"
+                                        }
+
+        orchInst.prettyPrintGridPerformanceMetrics(datasetName = "std-dataset", 
+                                                    performanceMetricTypeSpecifier = performanceMetricTypeSpecifier,
+                                                    malwarePercent=0.5)
+        ############################################################################################
+
+
+
 
 
 def main_worker(args, xmd_base_folder_location):

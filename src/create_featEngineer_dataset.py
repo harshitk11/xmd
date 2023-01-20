@@ -370,7 +370,8 @@ class feature_engineered_dataset:
                                                                         dataset_type=args.dataset_type,
                                                                         base_download_dir=args.dataset_base_location)
 
-        
+        # Location where timestamp dict is stored
+        timeStampCandidateLocalPathDict_saveLocation = os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails",f"timeStampCandidateLocalPathDict_{args.dataset_type}.pkl")
         
         # ######################################## For debugging ########################################    
         # _,_,candidateLocalPathDict = dataset_generator_instance.generate_dataset_winter(download_file_flag=False, num_download_threads=args.num_download_threads)
@@ -385,13 +386,13 @@ class feature_engineered_dataset:
             # Update the timestamp list
             timeStampCandidateLocalPathDict = candidateLocalPathDict
             # Save the timestamp list
-            with open(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails","timeStampCandidateLocalPathDict.pkl"), 'wb') as fp:
+            with open(timeStampCandidateLocalPathDict_saveLocation, 'wb') as fp:
                 pickle.dump(timeStampCandidateLocalPathDict, fp)
 
         # Checkpointing : if timeStampCandidateLocalPathDict is None, then you need to load the previously saved list
         elif timeStampCandidateLocalPathDict is None:
             # Load the saved timeStampCandidateLocalPathDict
-            with open(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails","timeStampCandidateLocalPathDict.pkl"), 'rb') as fp:
+            with open(timeStampCandidateLocalPathDict_saveLocation, 'rb') as fp:
                 timeStampCandidateLocalPathDict = pickle.load(fp)
             
         # If the dataset is downloaded, then generate list of files to delete from the downloaded dataset.
@@ -418,7 +419,7 @@ class feature_engineered_dataset:
             # Update the timestamp list with the new candidateLocalPathDict
             timeStampCandidateLocalPathDict = candidateLocalPathDict
             # Save the timestamp list
-            with open(os.path.join(xmd_base_folder_location,"res","featureEngineeredDatasetDetails","timeStampCandidateLocalPathDict.pkl"), 'wb') as fp:
+            with open(timeStampCandidateLocalPathDict_saveLocation, 'wb') as fp:
                 pickle.dump(timeStampCandidateLocalPathDict, fp)
 
         ############################ Log the info about this dataset ############################
@@ -525,6 +526,7 @@ class feature_engineered_dataset:
         for rtime in self.rtime_list:
             print(f"\t----------- Generating feature engineered dataset for truncated duration : {rtime} -----------")
             self.generate_feature_engineered_dataset_per_rtime_per_logcat_filter(truncated_duration=rtime)
+            # exit()
         return self.fDataset
 
     def generate_feature_engineered_dataset_per_rtime_per_logcat_filter(self, truncated_duration):
