@@ -35,5 +35,8 @@ res/trainedModels
 res/filesToDelete.txt
 config/default_config_copy.yaml
 
+# Ignore plots
+plots/
+
 
 

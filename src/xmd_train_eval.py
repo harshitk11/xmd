@@ -23,6 +23,9 @@ from collections import Counter
 from imblearn.over_sampling import RandomOverSampler
 from create_featEngineer_dataset import dataloader_generator
 from prettytable import PrettyTable
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 BENIGN_LABEL = 0
@@ -58,6 +61,41 @@ def get_args(xmd_base_folder):
     args.timestamp = timestamp
 
     return cfg, args
+
+class ImagePlottingTools:
+    """
+    Contains all the methods for creating the plots.
+    """
+    def multiLinePlot(df, performanceMetric, saveLocation=None):
+        """
+        Draws a multi line plot using seaborn.
+        params:
+            - df : Dataframe {'truncatedDuration':truncatedDuration_tracker, 'logcatRuntimeThreshold': logcatRuntimeThreshold_tracker, 'performanceMetric':performanceMetric_tracker}
+            - performanceMetric : Used for labeling the yaxis
+            - saveLocation: If passed, then will save the plot at this location.
+        Output:
+            - Saves the plot at saveLocation
+        """
+        # Convert to wide-form representation
+        df_wide = df.pivot(index='truncatedDuration', columns='logcatRuntimeThreshold', values='performanceMetric')
+        sns.set_style("ticks")
+        sns.set(font_scale=1.2)
+        sns.set(rc={'figure.figsize':(10,7)})
+        sns.lineplot(data=df_wide, markers=True, markersize=15)
+
+        plt.rcParams["font.weight"] = "bold"
+        plt.xticks(weight="bold")
+        plt.yticks(weight="bold")
+        plt.title("Performance over logcatRuntimeThreshold vs. truncatedDuration grid", weight="bold")
+        plt.xlabel("Truncated Duration", weight="bold")
+        plt.ylabel(performanceMetric, weight="bold")
+        plt.legend(title="logcatRuntimeThreshold", prop={'weight': 'bold'})
+        # plt.ylim(0.4,1)
+        sns.despine(top=True, right=True)
+        plt.tight_layout()
+        if saveLocation:
+            plt.savefig(saveLocation, dpi=300)   
+
 
 class performanceMetricAggregator:
     @staticmethod
@@ -97,7 +135,7 @@ class performanceMetricAggregator:
                                         "selectedBaseClassifier": "globl", "hpc", or "all"
                                         "globlChannelType": "globl", or "dvfs",
                                         "hpc-group-name": "hpc-group-1", "hpc-group-2", "hpc-group-3", or "hpc-group-4",
-                                        "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg", "hpc-globl-ensemble", or "hpc-globl-sg"
+                                        "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg-rf", "hpc-dvfs-sg-lr", "hpc-globl-ensemble", "hpc-globl-sg-rf", or "hpc-globl-sg-lr"
                                         "performanceMetricName": 'f1', 'precision', or 'recall'
                                     }
                             NOTE: depending on the performanceMetricDict, only some of the fields in the dict are required:
@@ -329,7 +367,7 @@ class baseRFmodel:
         self.args = args
         # Channel for which the RF model is created
         self.channelName = channelName
-        # Type of the channel : HPC or GLOBL
+        # Type of the channel : HPC, GLOBL, or second-stage
         self.channelType = channelType
         # Hyper parameter grid over which the tuning needs to be performed
         self.hyperparameterGrid = baseRFmodel.generate_hyperparameter_grid()
@@ -529,8 +567,8 @@ class late_stage_fusion:
         self.globlChannelBaseClf = None
         # Stores a dict of baseRFmodel objects. One for every hpc group. {grpName: baseRFModel object, ...}
         self.hpcGroupBaseClf = None
-        # Stage 2 MLP model for fusion
-        self.stage2mlp = None
+        # Stage 2 model for decision fusion. {model-type: {grpName: {'hpc-dvfs': Model object, 'hpc-globl': Model object}, grpName: {...}}, model-type: {...}} | model-type='RF' or 'LR'
+        self.stage2mlp = {}
         
         ########################################## Performance metricts  ##########################################
         # List of file hashes used for training the base classifiers
@@ -553,7 +591,7 @@ class late_stage_fusion:
             self.hpcGloblFusionPerformanceMetricAllGroup[splitType] = {}
             for groupName in late_stage_fusion.hpcGroupNameList:
                 self.hpcGloblFusionPerformanceMetricAllGroup[splitType][groupName] = {}
-                for clfToi in ["hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg", "hpc-globl-ensemble", "hpc-globl-sg"]:
+                for clfToi in ["hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg-rf", "hpc-dvfs-sg-lr", "hpc-globl-ensemble", "hpc-globl-sg-rf", "hpc-globl-sg-lr"]:
                     self.hpcGloblFusionPerformanceMetricAllGroup[splitType][groupName][clfToi] = None
         ###########################################################################################################
     
@@ -1091,23 +1129,142 @@ class late_stage_fusion:
         self.hpcGloblFusionPerformanceMetricAllGroup = model_pickle_file["hpcGloblFusionPerformanceMetricAllGroup"]
 
 
-    def stage2_mlpTrain(self, XtrainSG, includeHPC, globlChannelsOfInterest):
+    def stage2_Train(self, XtrainSG, secondStage_modelType, updateObjectPerformanceMetrics):
         """
-        Trains the stage2 MLP model. 
+        Trains the stage2 model. 
         
         params:
             - XtrainSG : Decisions of the stage1 models for GLOBL channels and HPC group
                         {"group1":{"Xtrain":dataset, "Ytrain":labels}, ...}
                             dataset shape - (Nsample, Nchannel+1)
                             label shape - (Nsample, 1)
+            - secondStage_modelType: 'RF' or 'LR' -> Decides the second stage model to be used: Random-Forest or Logistic Regression.
+            - updateObjectPerformanceMetrics: If True, then will update the performance metrics of the hpcGloblFusionPerformanceMetricAllGroup.
+        
+        Output:
+            - Updates the self.stage2mlp attribute with the trained models.    
         """
-        pass
+        print(f" ----------------------- Training stage-2 classifier -----------------------")
+        
+        saveModelDict = {}
+        # For each hpc-group we create a separate second-stage model (one for dvfs fusion, one for globl fusion)
+        for hpcGroupName, dataLabelDict in XtrainSG.items():
+            saveModelDict[hpcGroupName] = {}
 
-    def stage2_mlpEval(self, XtestSG, includeHPC, globlChannelsOfInterest):
+            print(f" -> group : {hpcGroupName}")
+            stage1Decisions = dataLabelDict["Xtrain"]
+            Ytrue = dataLabelDict["Ytrain"]
+            assert stage1Decisions.shape[-1] == (len(late_stage_fusion.globlChannelNameList)+1), f"Shape of second stage training dataset is incorrect: {stage1Decisions.shape}"
+            
+            ############### Get the filtered decisions for hpc-dvfs fusion and hpc-globl fusion ###############
+            dvfs_channels = late_stage_fusion.globlChannelNameList[:11]
+            dvfsChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in dvfs_channels]
+            channels_of_interest_index_dvfs = dvfsChnIndex + [-1]
+            stage1DecisionsFiltered_dvfs = stage1Decisions[:,channels_of_interest_index_dvfs]
+            
+            globl_channels = late_stage_fusion.globlChannelNameList
+            globlChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in globl_channels]
+            channels_of_interest_index_globl = globlChnIndex + [-1]
+            stage1DecisionsFiltered_globl = stage1Decisions[:,channels_of_interest_index_globl]
+            ###################################################################################################
+            
+            if secondStage_modelType == "RF":
+                ############### Train the second stage model (one for hpc-dvfs fusion, one for hpc-globl fusion) ###############
+                # hpc-dvfs fusion
+                baseModelInst_hpcDVFS = baseRFmodel(args=self.args, channelName=hpcGroupName, channelType="second-stage")
+                baseModelInst_hpcDVFS.train(Xtrain=stage1DecisionsFiltered_dvfs,Ytrain=Ytrue)
+                saveModelDict[hpcGroupName]['hpc-dvfs'] = baseModelInst_hpcDVFS
+                if updateObjectPerformanceMetrics:
+                    _performance_metric = {'f1': max(baseModelInst_hpcDVFS.validationScoreList),
+                                            'precision': None,
+                                            'recall': None}
+                    self.hpcGloblFusionPerformanceMetricAllGroup["training"][hpcGroupName]["hpc-dvfs-sg-rf"] = _performance_metric
+                
+                # hpc-globl fusion
+                baseModelInst_hpcGLOBL = baseRFmodel(args=self.args, channelName=hpcGroupName, channelType="second-stage")
+                baseModelInst_hpcGLOBL.train(Xtrain=stage1DecisionsFiltered_globl,Ytrain=Ytrue)
+                saveModelDict[hpcGroupName]['hpc-globl'] = baseModelInst_hpcGLOBL
+                
+                if updateObjectPerformanceMetrics:
+                    _performance_metric = {'f1': max(baseModelInst_hpcGLOBL.validationScoreList),
+                                            'precision': None,
+                                            'recall': None}
+                    self.hpcGloblFusionPerformanceMetricAllGroup["training"][hpcGroupName]["hpc-globl-sg-rf"] = _performance_metric
+                ################################################################################################################
+            
+            elif secondStage_modelType == "LR":
+                raise NotImplementedError("Logistic Regression second stage model not implemented.")
+            else:
+                raise ValueError("Only support for Random Forest or Logistic Regression second stage model.")
+
+        # Save the trained models
+        self.stage2mlp[secondStage_modelType] = saveModelDict
+            
+
+    def stage2_Eval(self, XtestSG, secondStage_modelType, updateObjectPerformanceMetrics, print_performance_metric):
         """
-        Generates the stage2 performance metrics using majority decision. Option to generate the ROC curve. 
+        Evaluates the stage-2 models using the test dataset. 
+        params:
+            - XtestSG : Decisions of the stage1 models for GLOBL channels and HPC group
+                        {"group1":{"Xtrain":dataset, "Ytrain":labels}, ...}
+                            dataset shape - (Nsample, Nchannel+1)
+                            label shape - (Nsample, 1)
+            - secondStage_modelType: 'RF' or 'LR' -> Decides the second stage model to be used: Random-Forest or Logistic Regression.
+            - updateObjectPerformanceMetrics: If True, then will update the performance metrics of the hpcGloblFusionPerformanceMetricAllGroup.
+            - print_performance_metric: If True, then will print the result of the evaluation
+        
+        Output:
+            - Updates the self.stage2mlp attribute with the trained models.    
         """
-        pass
+        print(f" ----------------------- Evaluating stage-2 classifier with second stage model: {secondStage_modelType} -----------------------")
+        # For each hpc-group we create a separate second-stage model (one for dvfs fusion, one for globl fusion)
+        for hpcGroupName, dataLabelDict in XtestSG.items():
+            print(f" -> group : {hpcGroupName}")
+            stage1Decisions = dataLabelDict["Xtrain"]
+            Ytrue = dataLabelDict["Ytrain"]
+            assert stage1Decisions.shape[-1] == (len(late_stage_fusion.globlChannelNameList)+1), f"Shape of second stage training dataset is incorrect: {stage1Decisions.shape}"
+            
+            ############### Get the filtered decisions for hpc-dvfs fusion and hpc-globl fusion ###############
+            dvfs_channels = late_stage_fusion.globlChannelNameList[:11]
+            dvfsChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in dvfs_channels]
+            channels_of_interest_index_dvfs = dvfsChnIndex + [-1]
+            stage1DecisionsFiltered_dvfs = stage1Decisions[:,channels_of_interest_index_dvfs]
+            
+            globl_channels = late_stage_fusion.globlChannelNameList
+            globlChnIndex = [late_stage_fusion.globlChannelNameList.index(coi) for coi in globl_channels]
+            channels_of_interest_index_globl = globlChnIndex + [-1]
+            stage1DecisionsFiltered_globl = stage1Decisions[:,channels_of_interest_index_globl]
+            ###################################################################################################
+
+            ############### Evaluate the second stage model (one for hpc-dvfs fusion, one for hpc-globl fusion) ###############
+            # Load the model
+            trainedModel_hpcDVFS = self.stage2mlp[secondStage_modelType][hpcGroupName]['hpc-dvfs']
+            trainedModel_hpcGLOBL = self.stage2mlp[secondStage_modelType][hpcGroupName]['hpc-globl']
+
+            # Get the prediction
+            print(f"HPC-DVFS fusion")
+            _, test_performance_metric_hpcDVFS = trainedModel_hpcDVFS.eval(Xtest = stage1DecisionsFiltered_dvfs, 
+                                                                        Ytest = Ytrue, 
+                                                                        print_performance_metric = print_performance_metric)
+            print(f"HPC-GLOBL fusion")
+            _, test_performance_metric_hpcGLOBL = trainedModel_hpcGLOBL.eval(Xtest = stage1DecisionsFiltered_globl, 
+                                                                        Ytest = Ytrue, 
+                                                                        print_performance_metric = print_performance_metric)
+            
+            if updateObjectPerformanceMetrics:
+                if secondStage_modelType == 'RF':
+                    hpc_dvfs_sgType = "hpc-dvfs-sg-rf"
+                    hpc_globl_sgType = "hpc-globl-sg-rf"
+                elif secondStage_modelType == 'LR':
+                    hpc_dvfs_sgType = "hpc-dvfs-sg-lr"
+                    hpc_globl_sgType = "hpc-globl-sg-lr"
+                else:
+                    raise ValueError(f"Incorrect second stage model specified: {secondStage_modelType}")
+                    
+                self.hpcGloblFusionPerformanceMetricAllGroup["testing"][hpcGroupName][hpc_dvfs_sgType] = test_performance_metric_hpcDVFS
+                self.hpcGloblFusionPerformanceMetricAllGroup["testing"][hpcGroupName][hpc_globl_sgType] = test_performance_metric_hpcGLOBL
+            ###################################################################################################################
+        
 
     @staticmethod
     def unit_test_lateStageFusion(args):
@@ -1178,7 +1335,7 @@ class late_stage_fusion:
 
         # print(" - Summary performance metric of all the models [post evaluation post loading] -")
         # lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True)
-        
+        # exit()
         ############################### Testing the fusion modules ###############################
         # Loading the datasets for testing the fusion modules
         hpc_x_test = []
@@ -1223,25 +1380,33 @@ class late_stage_fusion:
         for hpcGroupName, dataLabelDict in XtrainSG.items():
             print(hpcGroupName, dataLabelDict["Xtrain"].shape,dataLabelDict["Ytrain"].shape)
 
-        # Testing the globl fusion module
-        lateFusionInstance.stage2_globlFusion_ensemble_eval(Xeval=dfvs_X_test, 
-                                                            Yeval=dfvs_Y_test, 
-                                                            updateObjectPerformanceMetrics=True, 
-                                                            print_performance_metric=True,
-                                                            splitType="testing")
+        # # Testing the globl fusion module
+        # lateFusionInstance.stage2_globlFusion_ensemble_eval(Xeval=dfvs_X_test, 
+        #                                                     Yeval=dfvs_Y_test, 
+        #                                                     updateObjectPerformanceMetrics=True, 
+        #                                                     print_performance_metric=True,
+        #                                                     splitType="testing")
 
-        # Testing the globl fusion module that operates on the TrainSG dataset
-        lateFusionInstance.stage2_globlFusion_ensemble_eval_USING_TRAINSG(XtrainSG = XtrainSG, 
-                                                                        updateObjectPerformanceMetrics=True, 
-                                                                        print_performance_metric=True)
-        # Testing the hpc-globl fusion module
-        lateFusionInstance.stage2_hpcGlobl_ensemble_eval(XtrainSG = XtrainSG, 
-                                                        updateObjectPerformanceMetrics=True, 
-                                                        print_performance_metric=True,
-                                                        splitType="testing")
+        # # Testing the globl fusion module that operates on the TrainSG dataset
+        # lateFusionInstance.stage2_globlFusion_ensemble_eval_USING_TRAINSG(XtrainSG = XtrainSG, 
+        #                                                                 updateObjectPerformanceMetrics=True, 
+        #                                                                 print_performance_metric=True)
+        # # Testing the hpc-globl fusion module
+        # lateFusionInstance.stage2_hpcGlobl_ensemble_eval(XtrainSG = XtrainSG, 
+        #                                                 updateObjectPerformanceMetrics=True, 
+        #                                                 print_performance_metric=True,
+        #                                                 splitType="testing")
 
-        # Testing the performance metric
+        # # Testing the performance metric
+        # lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True, globlFusionPerfFlag=True, hpcGloblFusionPerfFlag=True)
+
+        ########## Testing the second stage modules ##########
+        # Train the second stage module
+        lateFusionInstance.stage2_Train(XtrainSG, secondStage_modelType='RF', updateObjectPerformanceMetrics=True)
+        lateFusionInstance.stage2_Eval(XtrainSG, secondStage_modelType='RF', updateObjectPerformanceMetrics=True, print_performance_metric=True)
         lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True, globlFusionPerfFlag=True, hpcGloblFusionPerfFlag=True)
+        ######################################################
+
 
 class featureEngineeredDatasetLoader:
     """
@@ -1401,7 +1566,7 @@ class orchestrator:
                 self.lateStageFusionObject[logcatRuntimeThreshold][truncatedDuration] = None
 
 
-    def std_dataset_tasks(self, logcatRuntimeThreshold, truncatedDuration, print_performance_metric, saveTrainedModels):
+    def std_dataset_tasks(self, logcatRuntimeThreshold, truncatedDuration, print_performance_metric, saveTrainedModels, trainStage1, trainStage2):
         """
         Tasks:
             -Load the dataset for all the classification tasks.
@@ -1415,9 +1580,11 @@ class orchestrator:
             - truncatedDuration (int): To truncate the time series, i.e., take the first truncatedDuration seconds.
             - print_performance_metric (bool): If True, then print the performance metrics for all evaluations.
             - saveTrainedModels (bool): If True, then save the lateStageFusion object in the trainedModels folder.
-            - self.lateStageFusionObject : Stores the path of late-stage-fusion object for the corresponding logcatRuntimeThreshold and truncatedDuration.
+            - trainStage1 (bool): Train stage 1 models if True.
+            - trainStage2 (bool): Train stage 2 models if True.
         Output:
             - lateFusionInstance : Instance of the object storing all the trained models
+            - self.lateStageFusionObject : Stores the path of late-stage-fusion object for the corresponding logcatRuntimeThreshold and truncatedDuration.
         """
         ######################################### Load the dataset for all the tasks ########################################
         assert self.datasetName == "std-dataset", "Incorrect dataset name"
@@ -1445,48 +1612,73 @@ class orchestrator:
         XtestGLOBL_HPC_res, YtestGLOBL_HPC_res = rmInst.resampleFusionTensor(XtestGLOBL_HPC=XtestGLOBL_HPC, YtestGLOBL_HPC=YtestGLOBL_HPC)
         ###########################################################################################
         
-        ######################################### Train the HPC and the DVFS base classifiers ########################################
-        print(f" - Training the hpc and globl base classifiers -")
-        lateFusionInstance = late_stage_fusion(args=self.args)
-        lateFusionInstance.stage1trainGLOBL(XtrainGLOBL=dfvs_X_train, YtrainGLOBL=dfvs_Y_train, updateObjectPerformanceMetrics= False)
-        lateFusionInstance.stage1trainHPC(XtrainHPC=hpc_X_train, YtrainHPC=hpc_Y_train, updateObjectPerformanceMetrics=False)
-        ##############################################################################################################################
+        lateFusionInstance = None
+        if trainStage1:
+            ######################################### Train the HPC and the DVFS base classifiers ########################################
+            print(f" - Training the hpc and globl base classifiers -")
+            lateFusionInstance = late_stage_fusion(args=self.args)
+            lateFusionInstance.stage1trainGLOBL(XtrainGLOBL=dfvs_X_train, YtrainGLOBL=dfvs_Y_train, updateObjectPerformanceMetrics= False)
+            lateFusionInstance.stage1trainHPC(XtrainHPC=hpc_X_train, YtrainHPC=hpc_Y_train, updateObjectPerformanceMetrics=False)
+            ##############################################################################################################################
+            
+            ################################### Update the performance metrics using the train-SG dataset ################################
+            XtrainSG = lateFusionInstance.generateTrainSGdataset(XtestGLOBL_HPC=XtestGLOBL_HPC_res, YtestGLOBL_HPC = YtestGLOBL_HPC_res)
         
-        ################################### Update the performance metrics using the train-SG dataset ################################
-        XtrainSG = lateFusionInstance.generateTrainSGdataset(XtestGLOBL_HPC=XtestGLOBL_HPC_res, YtestGLOBL_HPC = YtestGLOBL_HPC_res)
-        
-        # Update the base classifier scores
-        lateFusionInstance.update_stage1_performance_metrics_USING_TRAINSG(XtrainSG=XtrainSG, 
+            # Update the base classifier scores
+            lateFusionInstance.update_stage1_performance_metrics_USING_TRAINSG(XtrainSG=XtrainSG, 
+                                                                                updateObjectPerformanceMetrics=True, 
+                                                                                print_performance_metric=print_performance_metric)
+            # Generate the globl and dvfs fusion scores
+            lateFusionInstance.stage2_globlFusion_ensemble_eval_USING_TRAINSG(XtrainSG = XtrainSG, 
                                                                             updateObjectPerformanceMetrics=True, 
                                                                             print_performance_metric=print_performance_metric)
-        # Generate the globl and dvfs fusion scores
-        lateFusionInstance.stage2_globlFusion_ensemble_eval_USING_TRAINSG(XtrainSG = XtrainSG, 
-                                                                        updateObjectPerformanceMetrics=True, 
-                                                                        print_performance_metric=print_performance_metric)
+            
+            # Generate the hpc-globl fusion scores
+            lateFusionInstance.stage2_hpcGlobl_ensemble_eval(XtrainSG = XtrainSG, 
+                                                            updateObjectPerformanceMetrics=True, 
+                                                            print_performance_metric=print_performance_metric,
+                                                            splitType="training")
+            #####################################################################################################################################
+            # Save the hash list used for training the base classifiers
+            lateFusionInstance.baseClassifierTrainFileHashList = late_stage_fusion.get_hashList_from_fileList(file_paths=dvfs_fileList)
+            
+            if print_performance_metric:
+                # Pretty print performance metric
+                print(f"Summary of performance metrics for dataset : {self.datasetName}, logcatRuntimeThreshold : {logcatRuntimeThreshold}, truncatedDuration : {truncatedDuration}")
+                lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True, globlFusionPerfFlag=True, hpcGloblFusionPerfFlag=True)
         
-        # Generate the hpc-globl fusion scores
-        lateFusionInstance.stage2_hpcGlobl_ensemble_eval(XtrainSG = XtrainSG, 
-                                                        updateObjectPerformanceMetrics=True, 
-                                                        print_performance_metric=print_performance_metric,
-                                                        splitType="training")
-        #####################################################################################################################################
-        # Save the hash list used for training the base classifiers
-        lateFusionInstance.baseClassifierTrainFileHashList = late_stage_fusion.get_hashList_from_fileList(file_paths=dvfs_fileList)
+            # Save the trained models
+            if saveTrainedModels:
+                savePath = os.path.join(self.xmd_base_folder_location, "res", "trainedModels", self.datasetName)
+                if not os.path.isdir(savePath):
+                    os.makedirs(savePath)
+                savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{self.malwarePercent}.pkl")
+                self.lateStageFusionObject[logcatRuntimeThreshold][truncatedDuration] = savePath
+                lateFusionInstance.save_fusion_object(fpath=savePath)
         
-        if print_performance_metric:
-            # Pretty print performance metric
-            print(f"Summary of performance metrics for dataset : {self.datasetName}, logcatRuntimeThreshold : {logcatRuntimeThreshold}, truncatedDuration : {truncatedDuration}")
-            lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True, globlFusionPerfFlag=True, hpcGloblFusionPerfFlag=True)
-        
-        # Save the trained models
-        if saveTrainedModels:
+        else:
+            # Load the saved object containing the trained models
             savePath = os.path.join(self.xmd_base_folder_location, "res", "trainedModels", self.datasetName)
-            if not os.path.isdir(savePath):
-                os.makedirs(savePath)
             savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{self.malwarePercent}.pkl")
-            self.lateStageFusionObject[logcatRuntimeThreshold][truncatedDuration] = savePath
+            lateFusionInstance = late_stage_fusion(args=self.args)
+            lateFusionInstance.load_fusion_object(fpath=savePath)
+
+        if trainStage2:
+            # Generate TrainXG
+            XtrainSG = lateFusionInstance.generateTrainSGdataset(XtestGLOBL_HPC=XtestGLOBL_HPC_res, YtestGLOBL_HPC = YtestGLOBL_HPC_res)
+
+            # Train stage-2 models using TrainSG
+            lateFusionInstance.stage2_Train(XtrainSG, secondStage_modelType='RF', updateObjectPerformanceMetrics=True)
+        
+            # Save late fusion instance with updated parameters
             lateFusionInstance.save_fusion_object(fpath=savePath)
 
+            if print_performance_metric:
+                # Pretty print performance metric
+                print(f"Summary of performance metrics for dataset : {self.datasetName}, logcatRuntimeThreshold : {logcatRuntimeThreshold}, truncatedDuration : {truncatedDuration}")
+                lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True, globlFusionPerfFlag=True, hpcGloblFusionPerfFlag=True)
+        
+              
         return lateFusionInstance
 
     def cd_dataset_tasks(self, trainedModelDetails, logcatRuntimeThreshold, truncatedDuration, print_performance_metric, saveLateStageFusionObject):
@@ -1566,7 +1758,10 @@ class orchestrator:
                                                         updateObjectPerformanceMetrics=True, 
                                                         print_performance_metric=print_performance_metric,
                                                         splitType="testing")
+        # Generate the hpc-globl-rf scores
+        lateFusionInstance.stage2_Eval(XtrainSG, secondStage_modelType='RF', updateObjectPerformanceMetrics=True, print_performance_metric=True)
         ###########################################################################################################
+        
         # Save the hash list used for testing the hpc-globl fusion classifiers
         for grpIndx, (groupName, fileHashList) in enumerate(lateFusionInstance.hpcGloblTestFileHashlist.copy().items()):
             lateFusionInstance.hpcGloblTestFileHashlist[groupName] = late_stage_fusion.get_hashList_from_fileList(file_paths=globl_fileListSG[grpIndx])
@@ -1580,7 +1775,7 @@ class orchestrator:
             savePath = os.path.join(self.xmd_base_folder_location, "res", "trainedModels", self.datasetName)
             if not os.path.isdir(savePath):
                 os.mkdir(savePath)
-            savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{self.malwarePercent}.pkl")
+            savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{self.malwarePercent}_trainedModel{trainedModelDetails['logcatRuntimeThreshold']}_{trainedModelDetails['truncatedDuration']}_{trainedModelDetails['malwarePercent']}.pkl")
             self.lateStageFusionObject[logcatRuntimeThreshold][truncatedDuration] = savePath
             lateFusionInstance.save_fusion_object(fpath=savePath)
 
@@ -1605,7 +1800,7 @@ class orchestrator:
         """    
         pass
 
-    def logcat_runtime_vs_truncated_duration_grid(self, trainedModelDetails = None):
+    def logcat_runtime_vs_truncated_duration_grid(self, trainStage1, trainStage2, trainedModelDetails = None):
         """
         Performs a grid search over logcatRuntimeThreshold and truncatedDuration for the following tasks.
             Tasks:
@@ -1615,6 +1810,7 @@ class orchestrator:
                 - For std-dataset, generate late-stage-fusion instances storing the trained models.
             
             params:
+                - trainStage1, trainStage2 (bool) : For std-dataset, if True, then will train the corresponding stage-1 and stage-2 classifiers.
                 - trainedModelDetails (dict) : {"logcatRuntimeThreshold": (int), "truncatedDuration" : (int), "malwarePercent": (float)}
                                                 If this parameter is passed then grid search using the cd-dataset is performed using this trained model.
                                                 Else, the same config trained model is used for testing the corresponding cd-dataset instance.
@@ -1659,26 +1855,28 @@ class orchestrator:
                     orchInst.std_dataset_tasks(logcatRuntimeThreshold=logcatRuntimeThreshold, 
                                             truncatedDuration=truncatedDuration, 
                                             print_performance_metric=True, 
-                                            saveTrainedModels=True)                
+                                            saveTrainedModels=True,
+                                            trainStage1=trainStage1, 
+                                            trainStage2=trainStage2)                
         
         else:
             raise ValueError(f"Incomplete arguments : datasetType is {datasetType} and trainedModelDetails is {trainedModelDetails}.")
 
 
-    def prettyPrintGridPerformanceMetrics(self, datasetName, performanceMetricTypeSpecifier, malwarePercent):
+    def prettyPrintGridPerformanceMetrics(self, datasetName, performanceMetricTypeSpecifier, malwarePercent, trainedModelDetails=None):
         """
         Pretty prints the performance metrics over the search grid of logcatRuntimeThreshold and truncatedDuration.
         Edit this method if you want a different performance metric.
         
         params:
-            - datasetName : Name of the dataset for which the performance metric grid needs to be printed
+            - datasetName : Name of the dataset for which the performance metric grid needs to be printed [If dataset is cd, then check trainedModelDetails]
             - performanceMetricTypeSpecifier (dict): {
                                                         "performanceMetricDict": "stage1ClassifierPerformanceMetrics", "globlFusionPerformanceMetric", or "hpcGloblFusionPerformanceMetricAllGroup", 
                                                         "performanceMetricName": 'f1', 'precision', or 'recall', 
                                                         "selectedBaseClassifier": "globl", "hpc", or "all",
                                                         "globlChannelType": "globl", or "dvfs",
                                                         "hpc-group-name": "hpc-group-1", "hpc-group-2", "hpc-group-3", or "hpc-group-4",
-                                                        "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg", "hpc-globl-ensemble", or "hpc-globl-sg"
+                                                        "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg-rf", "hpc-dvfs-sg-lr", "hpc-globl-ensemble", "hpc-globl-sg-rf", or "hpc-globl-sg-lr"
                                                     }
                                     NOTE:
                                         (1) if "performanceMetricDict": "stage1ClassifierPerformanceMetrics"
@@ -1687,16 +1885,23 @@ class orchestrator:
                                                 Need: splitType, globlChannelType, performanceMetricName
                                         (3) if "performanceMetricDict": "hpcGloblFusionPerformanceMetricAllGroup"
                                                 Need: splitType, hpc-group-name, clfToi, performanceMetricName
+
             - malwarePercent (int) : Used for accessing the corresponding late_stage_fusion instance
+            - trainedModelDetails (dict) : {"logcatRuntimeThreshold": (int), "truncatedDuration": (int), "malwarePercent": (float)} 
+                                        -> Used for loading the corresponding trained model
+                                        -> If dataset is cd, and trainedModelDetails is specified, then the corresponding trained model
+                                            is used for generating the grid.
 
         Output:
             - gridTable (PrettyTable) : Contains the performance metric over the grid of truncatedDuration and logcatRuntimeThreshold
                                 Format: []
         """
-        # # Storing the grid for plotting
-        # xArr = [tD for tD in self.candidateTruncatedDurations]
-        # xy_plotArr = []
+        # Storing the grid as a df for plotting
+        truncatedDuration_tracker = []
+        logcatRuntimeThreshold_tracker = []
+        performanceMetric_tracker = []
 
+        datasetType, _ = dataloader_generator.get_dataset_type_and_partition_dist(dataset_name = datasetName)
 
         # For display
         gridTable = PrettyTable()
@@ -1708,7 +1913,16 @@ class orchestrator:
             for truncatedDuration in self.candidateTruncatedDurations:
                 ################################### Load the saved lateFusionInstance ###################################
                 savePath = os.path.join(self.xmd_base_folder_location, "res", "trainedModels", datasetName)
-                savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{malwarePercent}.pkl")
+                
+                if datasetType == "std-dataset":
+                    savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{malwarePercent}.pkl")
+                elif datasetType == "cd-dataset" and (trainedModelDetails is not None): # Testing wrt the specified trained model
+                    savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{malwarePercent}_trainedModel{trainedModelDetails['logcatRuntimeThreshold']}_{trainedModelDetails['truncatedDuration']}_{trainedModelDetails['malwarePercent']}.pkl")
+                elif datasetType == "cd-dataset": # Testing with the trained model of same config 
+                    savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{malwarePercent}_trainedModel{logcatRuntimeThreshold}_{truncatedDuration}_{malwarePercent}.pkl")
+                else: 
+                    raise ValueError(f"Incorrect dataset name specified: {datasetName}") 
+
                 lateFusionInstance = late_stage_fusion(args=self.args)
                 lateFusionInstance.load_fusion_object(fpath=savePath)
                 #########################################################################################################
@@ -1732,6 +1946,11 @@ class orchestrator:
                 pScore = performanceMetricAggregator.getAggregatePerformanceMetric(lateFusionInstance=lateFusionInstance, 
                                                                             performanceMetricType=performanceMetricType)
                 performanceMetricForAll_truncatedDuration.append(pScore)
+
+                # For the plots
+                truncatedDuration_tracker.append(truncatedDuration)
+                logcatRuntimeThreshold_tracker.append(logcatRuntimeThreshold)
+                performanceMetric_tracker.append(pScore)
                 ###############################################################################################################################
 
             gridTable.add_row([logcatRuntimeThreshold]+performanceMetricForAll_truncatedDuration)
@@ -1740,7 +1959,45 @@ class orchestrator:
             \nselectedBaseClassifier: {selectedBaseClassifier}\ngloblChannelType: {globlChannelType}\nhpc_group_name: {hpc_group_name}\nclfToi: {clfToi}")
         print(gridTable)
 
+        ########### Generate the plot ###########
+        d = {'truncatedDuration':truncatedDuration_tracker, 'logcatRuntimeThreshold': logcatRuntimeThreshold_tracker, 'performanceMetric':performanceMetric_tracker}
+        df = pd.DataFrame(data=d)
+        ImagePlottingTools.multiLinePlot(df=df, performanceMetric=performanceMetricTypeSpecifier["performanceMetricName"], saveLocation="/data/hkumar64/projects/arm-telemetry/xmd/plots/analysis/test.png")
+        #########################################
+
         return gridTable
+
+    def generate_performance_grid():
+        """
+        Generates the performance grid.
+
+        params:
+            - datasetName (str): Name of the dataset. Used for determining list of tasks.
+            - createLateStageFusionObjects (bool): If True, then will create the late stage fusion object.
+            - basePath_featureEngineeredDataset (str): Path of the base directory where the featureEngineered datasets are stored.
+            - malwarePercent (float): [0.5 or 0.1] Percentage of malware in the dataset.
+            - xmd_base_folder_location (str): Base location of the xmd directory
+            - trainedModelDetails (dict): If passed and datasetType is cd, then will use the corresponding trained model for generating the grid.
+            - performanceMetricTypeSpecifier (dict): {
+                                                        "performanceMetricDict": "stage1ClassifierPerformanceMetrics", "globlFusionPerformanceMetric", or "hpcGloblFusionPerformanceMetricAllGroup", 
+                                                        "performanceMetricName": 'f1', 'precision', or 'recall', 
+                                                        "selectedBaseClassifier": "globl", "hpc", or "all",
+                                                        "globlChannelType": "globl", or "dvfs",
+                                                        "hpc-group-name": "hpc-group-1", "hpc-group-2", "hpc-group-3", or "hpc-group-4",
+                                                        "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg-rf", "hpc-dvfs-sg-lr", "hpc-globl-ensemble", "hpc-globl-sg-rf", or "hpc-globl-sg-lr"
+                                                    }
+                                    NOTE:
+                                        (1) if "performanceMetricDict": "stage1ClassifierPerformanceMetrics"
+                                                Need: splitType, selectedBaseClassifier, performanceMetricName
+                                        (2) if "performanceMetricDict": "globlFusionPerformanceMetric"
+                                                Need: splitType, globlChannelType, performanceMetricName
+                                        (3) if "performanceMetricDict": "hpcGloblFusionPerformanceMetricAllGroup"
+                                                Need: splitType, hpc-group-name, clfToi, performanceMetricName
+
+        Output:
+
+        """
+        pass
 
     def save_orchestrator_state():
         pass
@@ -1756,31 +2013,35 @@ class orchestrator:
         #                         datasetName="std-dataset", 
         #                         malwarePercent=0.5,
         #                         xmd_base_folder_location=xmd_base_folder_location)
-        # orchInst.std_dataset_tasks(logcatRuntimeThreshold=0, truncatedDuration=30, print_performance_metric=True, saveTrainedModels=True)                
+        # orchInst.std_dataset_tasks(logcatRuntimeThreshold=0, truncatedDuration=30, print_performance_metric=True, saveTrainedModels=True, trainStage1=True, trainStage2=True)                
+        # exit()
         # ##############################################################################
 
         # ########################## Testing cd-dataset tasks ###########################
         # orchInst = orchestrator(args=args, 
         #                         basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
-        #                         datasetName="cdyear2-dataset", 
+        #                         datasetName="cdyear3-dataset", 
         #                         malwarePercent=0.5,
         #                         xmd_base_folder_location=xmd_base_folder_location)
         # # Trained model to be used for testing
-        # trainedModelDetails = {"logcatRuntimeThreshold":0, "truncatedDuration":30, "malwarePercent":0.5}
-        # orchInst.cd_dataset_tasks(trainedModelDetails=trainedModelDetails, logcatRuntimeThreshold=0, truncatedDuration=30, print_performance_metric=True, saveLateStageFusionObject=True)                
+        # trainedModelDetails = {"logcatRuntimeThreshold":15, "truncatedDuration":30, "malwarePercent":0.5}
+        # orchInst.cd_dataset_tasks(trainedModelDetails=trainedModelDetails, logcatRuntimeThreshold=15, truncatedDuration=30, print_performance_metric=True, saveLateStageFusionObject=True)                
+        # exit()
         # ##############################################################################
 
-        # ######################### Testing grid search task ##########################
-        # orchInst = orchestrator(args=args, 
-        #                         basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
-        #                         datasetName="cdyear1-dataset", 
-        #                         malwarePercent=0.5,
-        #                         xmd_base_folder_location=xmd_base_folder_location)
+        ######################### Testing grid search task ##########################
+        orchInst = orchestrator(args=args, 
+                                basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
+                                datasetName="std-dataset", 
+                                malwarePercent=0.5,
+                                xmd_base_folder_location=xmd_base_folder_location)
         # trainedModelDetails = {"logcatRuntimeThreshold":15, "truncatedDuration":30, "malwarePercent":0.5}
-        # trainedModelDetails=None
-        # orchInst.logcat_runtime_vs_truncated_duration_grid(trainedModelDetails=trainedModelDetails)
-        # exit()
-        # #############################################################################
+        trainedModelDetails=None
+        orchInst.logcat_runtime_vs_truncated_duration_grid(trainStage1=True,
+                                                            trainStage2=True, 
+                                                            trainedModelDetails=trainedModelDetails) 
+        exit()
+        #############################################################################
 
         # ########################## Testing performance metric aggregator ########################
         ## To be used as reference for passing arguments
@@ -1789,7 +2050,7 @@ class orchestrator:
         #                                                 "selectedBaseClassifier": "globl", "hpc", or "all",
         #                                                 "globlChannelType": "globl", or "dvfs",
         #                                                 "hpc-group-name": "hpc-group-1", "hpc-group-2", "hpc-group-3", or "hpc-group-4",
-        #                                                 "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg", "hpc-globl-ensemble", or "hpc-globl-sg"
+        #                                                 "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg-rf", "hpc-dvfs-sg-lr", "hpc-globl-ensemble", "hpc-globl-sg-rf", or "hpc-globl-sg-lr"
         
         # datasetName = "cdyear1-dataset"
         # performanceMetricDict = "hpcGloblFusionPerformanceMetricAllGroup"
@@ -1822,32 +2083,34 @@ class orchestrator:
         ########################## Testing the performance grid generator ##########################
         orchInst = orchestrator(args=args, 
                                 basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
-                                datasetName="cdyear1-dataset", 
+                                datasetName="cdyear2-dataset", 
                                 malwarePercent=0.5,
                                 xmd_base_folder_location=xmd_base_folder_location)
 
-        # performanceMetricTypeSpecifier = {
+        ############################################################## To be used as reference ###################################################################################################
+        # performanceMetricTypeSpecifier = {    
         #                                     "performanceMetricDict": "stage1ClassifierPerformanceMetrics", "globlFusionPerformanceMetric", or "hpcGloblFusionPerformanceMetricAllGroup", 
         #                                     "performanceMetricName": 'f1', 'precision', or 'recall', 
         #                                     "selectedBaseClassifier": "globl", "hpc", or "all",
         #                                     "globlChannelType": "globl", or "dvfs",
         #                                     "hpc-group-name": "hpc-group-1", "hpc-group-2", "hpc-group-3", or "hpc-group-4",
-        #                                     "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg", "hpc-globl-ensemble", or "hpc-globl-sg"
+        #                                     "clfToi": "hpc", "hpc-dvfs-ensemble", "hpc-dvfs-sg-rf", "hpc-dvfs-sg-lr", "hpc-globl-ensemble", "hpc-globl-sg-rf", or "hpc-globl-sg-lr"
         #                                 }
-
+        ##########################################################################################################################################################################################
 
         performanceMetricTypeSpecifier = {
-                                            "performanceMetricDict": "hpcGloblFusionPerformanceMetricAllGroup", 
+                                            "performanceMetricDict": "stage1ClassifierPerformanceMetrics", 
                                             "performanceMetricName": 'f1', 
-                                            "selectedBaseClassifier": "globl",
+                                            "selectedBaseClassifier": "all",
                                             "globlChannelType": "globl",
-                                            "hpc-group-name": "hpc-group-3",
-                                            "clfToi": "hpc-globl-ensemble"
+                                            "hpc-group-name": "hpc-group-1",
+                                            "clfToi": "hpc"
                                         }
 
-        orchInst.prettyPrintGridPerformanceMetrics(datasetName = "std-dataset", 
+        orchInst.prettyPrintGridPerformanceMetrics(datasetName = "cdyear3-dataset", 
                                                     performanceMetricTypeSpecifier = performanceMetricTypeSpecifier,
-                                                    malwarePercent=0.5)
+                                                    malwarePercent=0.5,
+                                                    trainedModelDetails=None)
         ############################################################################################
 
 
