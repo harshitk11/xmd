@@ -26,6 +26,7 @@ from prettytable import PrettyTable
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from prettytable import MSWORD_FRIENDLY
 
 
 BENIGN_LABEL = 0
@@ -66,12 +67,13 @@ class ImagePlottingTools:
     """
     Contains all the methods for creating the plots.
     """
-    def multiLinePlot(df, performanceMetric, saveLocation=None):
+    def multiLinePlot(df, performanceMetric, plotTitle, saveLocation=None):
         """
         Draws a multi line plot using seaborn.
         params:
             - df : Dataframe {'truncatedDuration':truncatedDuration_tracker, 'logcatRuntimeThreshold': logcatRuntimeThreshold_tracker, 'performanceMetric':performanceMetric_tracker}
             - performanceMetric : Used for labeling the yaxis
+            - plotTitle : Title of the plot
             - saveLocation: If passed, then will save the plot at this location.
         Output:
             - Saves the plot at saveLocation
@@ -86,11 +88,11 @@ class ImagePlottingTools:
         plt.rcParams["font.weight"] = "bold"
         plt.xticks(weight="bold")
         plt.yticks(weight="bold")
-        plt.title("Performance over logcatRuntimeThreshold vs. truncatedDuration grid", weight="bold")
+        plt.title(plotTitle, weight="bold")
         plt.xlabel("Truncated Duration", weight="bold")
         plt.ylabel(performanceMetric, weight="bold")
         plt.legend(title="logcatRuntimeThreshold", prop={'weight': 'bold'})
-        # plt.ylim(0.4,1)
+        plt.ylim(0.3,0.7)
         sns.despine(top=True, right=True)
         plt.tight_layout()
         if saveLocation:
@@ -1900,6 +1902,7 @@ class orchestrator:
         truncatedDuration_tracker = []
         logcatRuntimeThreshold_tracker = []
         performanceMetric_tracker = []
+        clfToi_tracker = []
 
         datasetType, _ = dataloader_generator.get_dataset_type_and_partition_dist(dataset_name = datasetName)
 
@@ -1945,12 +1948,14 @@ class orchestrator:
 
                 pScore = performanceMetricAggregator.getAggregatePerformanceMetric(lateFusionInstance=lateFusionInstance, 
                                                                             performanceMetricType=performanceMetricType)
+                pScore = round(pScore,2)
                 performanceMetricForAll_truncatedDuration.append(pScore)
 
                 # For the plots
                 truncatedDuration_tracker.append(truncatedDuration)
                 logcatRuntimeThreshold_tracker.append(logcatRuntimeThreshold)
                 performanceMetric_tracker.append(pScore)
+                clfToi_tracker.append(clfToi)
                 ###############################################################################################################################
 
             gridTable.add_row([logcatRuntimeThreshold]+performanceMetricForAll_truncatedDuration)
@@ -1958,14 +1963,53 @@ class orchestrator:
         print(f" --- Performance metric for {datasetName} --- \nperformanceMetricDict: {performanceMetricDict}\nperformanceMetricName: {performanceMetricName}\
             \nselectedBaseClassifier: {selectedBaseClassifier}\ngloblChannelType: {globlChannelType}\nhpc_group_name: {hpc_group_name}\nclfToi: {clfToi}")
         print(gridTable)
+        print("--------------------------------------------------")
+        print(gridTable.get_csv_string())
 
+        
         ########### Generate the plot ###########
         d = {'truncatedDuration':truncatedDuration_tracker, 'logcatRuntimeThreshold': logcatRuntimeThreshold_tracker, 'performanceMetric':performanceMetric_tracker}
         df = pd.DataFrame(data=d)
-        ImagePlottingTools.multiLinePlot(df=df, performanceMetric=performanceMetricTypeSpecifier["performanceMetricName"], saveLocation="/data/hkumar64/projects/arm-telemetry/xmd/plots/analysis/test.png")
+
+        if trainedModelDetails is not None:
+            trainedModelFileName = f"trainedModel{trainedModelDetails['logcatRuntimeThreshold']}_{trainedModelDetails['truncatedDuration']}_{trainedModelDetails['malwarePercent']}"
+        else:
+            trainedModelFileName = None
+
+        ImagePlottingTools.multiLinePlot(df=df, 
+                                        performanceMetric=performanceMetricTypeSpecifier["performanceMetricName"], 
+                                        plotTitle=f"Performance over lRT vs. tD grid {performanceMetricDict}",
+                                        saveLocation=f"/data/hkumar64/projects/arm-telemetry/xmd/plots/analysis/{performanceMetricDict}_{performanceMetricName}_{selectedBaseClassifier}_{hpc_group_name}_{clfToi}_model_{trainedModelFileName}.png")
         #########################################
 
         return gridTable
+
+    @staticmethod
+    def print_lateFusionObject_performanceMetrics(xmd_base_folder_location, datasetName, truncatedDuration, logcatRuntimeThreshold, malwarePercent, trainedModelDetails, args):
+        """
+        Prints all the performance metric stored in the late fusion object
+        params:
+            - xmd_base_folder_location: Used for accessing the corresponding late stage fusion object
+            - datasetName: Used for accessing the corresponding late stage fusion object
+            - truncatedDuration, logcatRuntimeThreshold, malwarePercent: Used for accessing the late stage fusion object for the cd-dataset
+            - trainedModelDetails: Used for accessing the late stage fusion object
+        """
+        # Load the late stage fusion object
+        datasetType, _ = dataloader_generator.get_dataset_type_and_partition_dist(dataset_name = datasetName)
+        if datasetType == 'std-dataset':
+            savePath = os.path.join(xmd_base_folder_location, "res", "trainedModels", "std-dataset")
+            savePath = os.path.join(savePath,f"lateFusion_logRuntime{trainedModelDetails['logcatRuntimeThreshold']}_truncDuration{trainedModelDetails['truncatedDuration']}_malwarePercent{trainedModelDetails['malwarePercent']}.pkl")
+        elif datasetType == 'cd-dataset':
+            savePath = os.path.join(xmd_base_folder_location, "res", "trainedModels", datasetName)
+            savePath = os.path.join(savePath,f"lateFusion_logRuntime{logcatRuntimeThreshold}_truncDuration{truncatedDuration}_malwarePercent{malwarePercent}_trainedModel{trainedModelDetails['logcatRuntimeThreshold']}_{trainedModelDetails['truncatedDuration']}_{trainedModelDetails['malwarePercent']}.pkl")
+        else:
+            raise ValueError(f"Incorrect dataset name passed: {datasetName}")
+
+        lateFusionInstance = late_stage_fusion(args=args)
+        lateFusionInstance.load_fusion_object(fpath=savePath)
+
+        # Pretty print the performance metrics
+        lateFusionInstance.pretty_print_performance_metric(baseClfPerfFlag=True, globlFusionPerfFlag=True, hpcGloblFusionPerfFlag=True)
 
     def generate_performance_grid():
         """
@@ -2007,40 +2051,58 @@ class orchestrator:
         
     @staticmethod
     def unit_test_orchestrator(args, xmd_base_folder_location):
-        # ########################## Testing std-dataset tasks ##########################
+        basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDataset1"
+        # basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter"
+        ######################### Print the performance metrics of a late stage fusion object ##########################
+        # datasetName = "cdyear1-dataset"
+        # logcatRuntimeThreshold=0
+        # truncatedDuration=15
+        # malwarePercent=0.5
+        # trainedModelDetails = {"logcatRuntimeThreshold":0, "truncatedDuration":15, "malwarePercent":0.5}
+
+        # orchestrator.print_lateFusionObject_performanceMetrics(xmd_base_folder_location=xmd_base_folder_location, 
+        #                                                         datasetName=datasetName, 
+        #                                                         truncatedDuration=truncatedDuration, 
+        #                                                         logcatRuntimeThreshold=logcatRuntimeThreshold, 
+        #                                                         malwarePercent=malwarePercent, 
+        #                                                         trainedModelDetails=trainedModelDetails, 
+        #                                                         args=args)
+        # exit()
+        # ###############################################################################################################
+        ########################## Testing std-dataset tasks ##########################
         # orchInst = orchestrator(args=args, 
-        #                         basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
+        #                         basePath_featureEngineeredDataset=basePath_featureEngineeredDataset, 
         #                         datasetName="std-dataset", 
         #                         malwarePercent=0.5,
         #                         xmd_base_folder_location=xmd_base_folder_location)
-        # orchInst.std_dataset_tasks(logcatRuntimeThreshold=0, truncatedDuration=30, print_performance_metric=True, saveTrainedModels=True, trainStage1=True, trainStage2=True)                
+        # orchInst.std_dataset_tasks(logcatRuntimeThreshold=15, truncatedDuration=30, print_performance_metric=True, saveTrainedModels=True, trainStage1=True, trainStage2=True)                
         # exit()
+        ##############################################################################
+
+        ########################## Testing cd-dataset tasks ###########################
+        orchInst = orchestrator(args=args, 
+                                basePath_featureEngineeredDataset=basePath_featureEngineeredDataset, 
+                                datasetName="cd-dataset", 
+                                malwarePercent=0.5,
+                                xmd_base_folder_location=xmd_base_folder_location)
+        # Trained model to be used for testing
+        trainedModelDetails = {"logcatRuntimeThreshold":15, "truncatedDuration":30, "malwarePercent":0.5}
+        orchInst.cd_dataset_tasks(trainedModelDetails=trainedModelDetails, logcatRuntimeThreshold=15, truncatedDuration=30, print_performance_metric=True, saveLateStageFusionObject=True)                
+        exit()
         # ##############################################################################
 
-        # ########################## Testing cd-dataset tasks ###########################
+        ######################## Testing grid search task ##########################
         # orchInst = orchestrator(args=args, 
         #                         basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
         #                         datasetName="cdyear3-dataset", 
         #                         malwarePercent=0.5,
         #                         xmd_base_folder_location=xmd_base_folder_location)
-        # # Trained model to be used for testing
-        # trainedModelDetails = {"logcatRuntimeThreshold":15, "truncatedDuration":30, "malwarePercent":0.5}
-        # orchInst.cd_dataset_tasks(trainedModelDetails=trainedModelDetails, logcatRuntimeThreshold=15, truncatedDuration=30, print_performance_metric=True, saveLateStageFusionObject=True)                
+        # trainedModelDetails = {"logcatRuntimeThreshold":75, "truncatedDuration":90, "malwarePercent":0.5}
+        # # trainedModelDetails=None
+        # orchInst.logcat_runtime_vs_truncated_duration_grid(trainStage1=True,
+        #                                                     trainStage2=True, 
+        #                                                     trainedModelDetails=trainedModelDetails) 
         # exit()
-        # ##############################################################################
-
-        ######################### Testing grid search task ##########################
-        orchInst = orchestrator(args=args, 
-                                basePath_featureEngineeredDataset="/data/hkumar64/projects/arm-telemetry/xmd/data/featureEngineeredDatasetWinter", 
-                                datasetName="std-dataset", 
-                                malwarePercent=0.5,
-                                xmd_base_folder_location=xmd_base_folder_location)
-        # trainedModelDetails = {"logcatRuntimeThreshold":15, "truncatedDuration":30, "malwarePercent":0.5}
-        trainedModelDetails=None
-        orchInst.logcat_runtime_vs_truncated_duration_grid(trainStage1=True,
-                                                            trainStage2=True, 
-                                                            trainedModelDetails=trainedModelDetails) 
-        exit()
         #############################################################################
 
         # ########################## Testing performance metric aggregator ########################
@@ -2099,18 +2161,20 @@ class orchestrator:
         ##########################################################################################################################################################################################
 
         performanceMetricTypeSpecifier = {
-                                            "performanceMetricDict": "stage1ClassifierPerformanceMetrics", 
+                                            "performanceMetricDict": "hpcGloblFusionPerformanceMetricAllGroup", 
                                             "performanceMetricName": 'f1', 
-                                            "selectedBaseClassifier": "all",
+                                            "selectedBaseClassifier": "hpc",
+                                            
                                             "globlChannelType": "globl",
-                                            "hpc-group-name": "hpc-group-1",
-                                            "clfToi": "hpc"
+                                            
+                                            "hpc-group-name": "hpc-group-4",
+                                            "clfToi": "hpc-dvfs-sg-rf"
                                         }
-
-        orchInst.prettyPrintGridPerformanceMetrics(datasetName = "cdyear3-dataset", 
+        trainedModelDetails = {"logcatRuntimeThreshold":0, "truncatedDuration":90, "malwarePercent":0.5}
+        orchInst.prettyPrintGridPerformanceMetrics(datasetName = "cdyear2-dataset", 
                                                     performanceMetricTypeSpecifier = performanceMetricTypeSpecifier,
                                                     malwarePercent=0.5,
-                                                    trainedModelDetails=None)
+                                                    trainedModelDetails=trainedModelDetails)
         ############################################################################################
 
 
